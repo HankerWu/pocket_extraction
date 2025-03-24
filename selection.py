@@ -66,7 +66,7 @@ class PocketSelect(Select):
             
         # Fast sphere-sphere collision check
         center_distance = np.linalg.norm(residue_center - self.ligand_center)
-        if center_distance > (self.extended_radius + residue_radius):
+        if center_distance > 1.5 * (self.extended_radius + residue_radius):
             return False
             
         # Detailed atom-level check
