@@ -138,7 +138,7 @@ class LigandSelect(Select):
         """Accept only ligand residues"""
         residue_name = residue.get_resname().strip()
         if self.ligand_names is not None:
-            if residue_name == self.ligand_names:
+            if residue_name in self.ligand_names:
                 return True
             else:
                 return False
