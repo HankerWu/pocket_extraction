@@ -25,7 +25,7 @@ def extract_ligand_and_pocket(pdb_file, ligand_file, pocket_file, ligand_names, 
     # Multi-ligand extraction: separate files for each ligand
     if multi_ligand:
         for i, ligand_residue in enumerate(ligand_structures):
-            ligand_filename = f"{ligand_file}_{i+1}{ext}"
+            ligand_filename = ligand_file.replace(ext, f"_{i+1}{ext}")
             save_structure(ligand_filename, ligand_residue, ligand_select, ext)
             print(f"Ligand saved to {ligand_filename}")
 
@@ -33,7 +33,7 @@ def extract_ligand_and_pocket(pdb_file, ligand_file, pocket_file, ligand_names, 
             ligand_coords = np.array([atom.coord for atom in ligand_residue.get_atoms()])
 
             # Extract and save corresponding pocket
-            pocket_filename = f"{pocket_file}_{i+1}{ext}"
+            pocket_filename = pocket_file.replace(ext, f"_{i+1}{ext}")
             pocket_select = PocketSelect(radius=radius, ligand_coords=ligand_coords)
             save_structure(pocket_filename, structure, pocket_select, ext)
             print(f"Pocket saved to {pocket_filename}")
