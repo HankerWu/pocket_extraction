@@ -3,13 +3,13 @@
 **Pocket Extraction** is a Python package for extracting ligands and binding pockets from PDB files. It combines the power of **Biopython** and **RDKit** to provide flexible and efficient molecular structure processing.
 
 ## Features ✨
-• **Extract Binding Pockets**: Identify pockets around ligands using coordinates, ligand files, or custom radii.
-• **Extract Ligands**: Retrieve ligands by name, multiple ligands separately, or all HETATM residues (excluding solvents/ions).
-• **Multi-Format Support**:  
+- **Extract Binding Pockets**: Identify pockets around ligands using coordinates, ligand files, or custom radii.
+- **Extract Ligands**: Retrieve ligands by name, multiple ligands separately, or all HETATM residues (excluding solvents/ions).
+- **Multi-Format Support**:  
   • **Input**: PDB, SDF, MOL2 (ligand files).  
   • **Output**: PDB (default), SDF, MOL2.
-• **Advanced Filtering**: Select by model ID, chain ID, or ligand names.
-• **Batch Processing**: Extract individual pockets for multiple ligands in one command.
+- **Advanced Filtering**: Select by model ID, chain ID, or ligand names.
+- **Batch Processing**: Extract individual pockets for multiple ligands in one command.
 
 ---
 
