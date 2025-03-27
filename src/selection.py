@@ -37,14 +37,14 @@ class PocketSelect(Select):
         
         # Process ligand spatial parameters
         if ligand_coords is not None:
-            self.ligand_coords = ligand_coords
+            self.ligand_coords = np.array(ligand_coords)
             self.ligand_center = np.mean(ligand_coords, axis=0)
             # Calculate ligand bounding sphere radius
             self.ligand_radius = np.max(
                 np.linalg.norm(ligand_coords - self.ligand_center, axis=1)
             )
         else:
-            self.ligand_center = ligand_center
+            self.ligand_center = np.array(ligand_center)
             self.ligand_radius = 0.0  # Not used in center mode
             
         # Precompute extended radius for fast rejection

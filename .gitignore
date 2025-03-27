@@ -5,3 +5,10 @@ output/
 *.zip
 *.tar.gz
 *.ipynb
+dist/
+build/
+*.egg-info/
+*.whl
+*.pyc
+*.pyo
+*.pyd

@@ -5,16 +5,9 @@ from selection import PocketSelect
 from rdkit import Chem
 import numpy as np
 
-def check_ligand_file(ligand_file):
-    """Check if the ligand file is valid and contains a ligand."""
-    ext = ligand_file.split(".")[-1]
-    if ext not in ["sdf", "mol2", "pdb"]:
-        raise ValueError(f"Unsupported ligand file format: {ext}")
-    return ext
-
 def get_ligand_coords(ligand_file):
     """Extract ligand coordinates from the ligand file."""
-    ext = check_ligand_file(ligand_file)
+    ext = _check_ligand_file(ligand_file)
     if ext == "sdf":
         return _get_coords_from_sdf(ligand_file)
     elif ext == "mol2":
@@ -23,6 +16,13 @@ def get_ligand_coords(ligand_file):
         return _get_coords_from_pdb(ligand_file)
     else:
         raise ValueError(f"Unsupported ligand file format: {ext}")
+
+def _check_ligand_file(ligand_file):
+    """Check if the ligand file is valid and contains a ligand."""
+    ext = ligand_file.split(".")[-1]
+    if ext not in ["sdf", "mol2", "pdb"]:
+        raise ValueError(f"Unsupported ligand file format: {ext}")
+    return ext
 
 def _get_coords_from_sdf(ligand_file):
     """Extract coordinates from SDF file."""
@@ -50,6 +50,21 @@ def _get_coords_from_pdb(ligand_file):
     ligand_structure = PDB.PDBParser(QUIET=True).get_structure("LIGAND", ligand_file)
     return np.array([atom.coord for atom in ligand_structure.get_atoms()])
 
+def extract_pocket(pdb_file, pocket_file, ligand_coords=None, ligand_center=None, radius=10.0, ext=".pdb"):
+    """Extract one pocket from a PDB file based on ligand coordinates or center."""
+    # Load the structure
+    structure = PDB.PDBParser(QUIET=True).get_structure("POCKET", pdb_file)
+    
+    # Create a selection object for the pocket
+    select = PocketSelect(
+        ligand_coords=ligand_coords,
+        ligand_center=ligand_center,
+        radius=radius
+    )
+    
+    # Save the pocket structure
+    save_structure(pocket_file, structure, select, ext)
+
 def main():
     parser = argparse.ArgumentParser(description="Extract pocket from PDB file")
     parser.add_argument("pdb_file", type=str, help="Input PDB file")
@@ -59,10 +74,7 @@ def main():
     parser.add_argument("--radius", type=float, default=10.0, help="Pocket search radius (default: 10.0)")
     parser.add_argument("--ext", type=str, default=".pdb", choices=[".pdb", ".cif"], help="File extension (default: .pdb)")
     args = parser.parse_args()
-    
-    # Load the structure
-    structure = PDB.PDBParser(QUIET=True).get_structure("POCKET", args.pdb_file)
-    # Create a selection object for the pocket
+
     if args.ligand_file:
         ligand_coords = get_ligand_coords(args.ligand_file)
         ligand_center = None
@@ -71,14 +83,16 @@ def main():
         assert args.ligand_center is not None, "Must provide either ligand_file or ligand_center"
         ligand_center = args.ligand_center
         
-    select = PocketSelect(
+    # Extract pocket
+    extract_pocket(
+        pdb_file=args.pdb_file,
+        pocket_file=args.pocket_file,
         ligand_coords=ligand_coords,
         ligand_center=ligand_center,
-        radius=args.radius
+        radius=args.radius,
+        ext=args.ext
     )
-    # Save the pocket structure
-    save_structure(args.pocket_file, structure, select, args.ext)
-    print(f"Pocket saved to {args.pocket_file}")
+    print(f"Pocket extracted from {args.pdb_file} and saved to {args.pocket_file}")
     
 if __name__ == "__main__":
     main()
