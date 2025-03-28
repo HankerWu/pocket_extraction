@@ -2,7 +2,7 @@ from Bio.PDB import Select
 from Bio import PDB
 import numpy as np
 from typing import Optional, List
-from data_utils import (
+from .data_utils import (
     residue_name_to_one_letter_code,
     amino_acid_bounding_radii,
     get_remove_ligands,

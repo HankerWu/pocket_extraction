@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pocket_extraction"
-version = "0.1.1"
+version = "0.1.2"
 authors = [
     {name = "Hanker", email = "wu_2018@mail.ustc.edu.cn"}
 ]
@@ -28,7 +28,11 @@ Homepage = "https://github.com/HankerWu/pocket_extraction"
 [tool.setuptools.packages.find]
 where = ["src"]  
 
+[tool.setuptools]
+include-package-data = true
+
 [project.scripts]
-extract_pocket = "extract_pocket:main"
-extract_ligand = "extract_ligand:main"
-extract_ligand_and_pocket = "extract_ligand_and_pocket:main"
+extract_pocket = "pocket_extraction.extract_pocket:main"
+extract_ligand = "pocket_extraction.extract_ligand:main"
+extract_ligand_and_pocket = "pocket_extraction.extract_ligand_and_pocket:main"
+

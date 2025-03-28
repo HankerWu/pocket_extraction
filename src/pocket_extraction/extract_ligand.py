@@ -1,7 +1,7 @@
 import argparse
 from Bio import PDB
-from data_utils import save_structure
-from selection import LigandSelect
+from .data_utils import save_structure
+from .selection import LigandSelect
 import os
 
 def extract_ligand(pdb_file, ligand_file, ligand_names=None, multi_ligand=False, model_id=None, chain_id=None, ext=".pdb"):

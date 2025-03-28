@@ -1,7 +1,7 @@
 import argparse
 from Bio import PDB
-from data_utils import save_structure
-from selection import PocketSelect
+from .data_utils import save_structure
+from .selection import PocketSelect
 from rdkit import Chem
 import numpy as np
 

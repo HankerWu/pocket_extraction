@@ -1,7 +1,7 @@
 import argparse
 from Bio import PDB
-from data_utils import save_structure
-from selection import LigandSelect, PocketSelect
+from .data_utils import save_structure
+from .selection import LigandSelect, PocketSelect
 import numpy as np
 import os
 
