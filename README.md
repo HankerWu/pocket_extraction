@@ -1,19 +1,32 @@
 # Pocket Extraction
 
-**Pocket Extraction** is a Python package for extracting ligands and binding pockets from PDB files. It combines the power of **Biopython** and **RDKit** to provide flexible and efficient molecular structure processing.
+**Pocket Extraction** is a Python package built on **Biopython** for extracting ligands and binding pockets from structural biology files (PDB/mmCIF). It supports high-throughput screening as well as detailed structural analyses.
 
-## Features ✨
-- **Extract Binding Pockets**: Identify pockets around ligands using coordinates, ligand files, or custom radii.
-- **Extract Ligands**: Retrieve ligands by name, multiple ligands separately, or all HETATM residues (excluding solvents/ions).
-- **Multi-Format Support**:  
-  • **Input**: PDB, SDF, MOL2 (ligand files).  
-  • **Output**: PDB (default), SDF, MOL2.
-- **Advanced Filtering**: Select by model ID, chain ID, or ligand names.
-- **Batch Processing**: Extract individual pockets for multiple ligands in one command.
+---
+
+## Key Features ✨
+
+- **Binding Pocket Extraction**  
+  Extract pockets around ligands using either:
+  - An existing ligand file, or  
+  - Manually specified coordinates  
+  *(Adjust the search radius as needed.)*
+
+- **Ligand Extraction**  
+  Retrieve ligands by specifying names (single/multiple) or by automatically processing all non-solvent HETATM residues.
+
+- **Flexible I/O Support**  
+  - **Input:** PDB, mmCIF  
+  - **Output:** PDB (default), mmCIF
+
+- **Advanced Filtering & Batch Processing**  
+  Filter by model ID, chain ID, or ligand names; process multiple ligands/pockets in one command.
 
 ---
 
 ## Installation
+
+Install via pip:
 
 ```bash
 pip install pocket_extraction
@@ -21,222 +34,104 @@ pip install pocket_extraction
 
 ---
 
-## Quick Start 🚀
+## Usage Examples
 
-### 1. Extract Ligand and Its Pocket (CLI)
+The package provides both CLI and Python interfaces. Below are the consolidated examples that cover the most common use cases.
+
+### 1. Extracting Binding Pockets
+
+**CLI:**
 ```bash
-extract_ligand_and_pocket input.pdb \
-  -l ligand.pdb \
-  -p pocket.pdb \
-  --ligand_names ATP \
-  --radius 10.0
+# Using an existing ligand file:
+extract_pocket input.pdb -o pocket.cif --ligand_file ligand.pdb --radius 12.5
+
+# Using manual coordinates (specify ligand center):
+extract_pocket input.cif -o pocket.pdb --ligand_center 10.0 20.0 30.0 --radius 10.0
 ```
 
-### 2. Extract All Ligands with Individual Pockets (CLI)
-```bash
-extract_ligand_and_pocket input.pdb \
-  -l ligands/ \
-  -p pockets/ \
-  --multi_ligand
-```
-
-### 3. Python API Example
-```python
-from pocket_extraction import extract_ligand, extract_pocket
-
-# Extract ligand "HEM" from Chain B
-extract_ligand("input.pdb", "heme.pdb", 
-              ligand_names=["HEM"], chain_id="B")
-
-# Extract pocket around a manually defined center
-extract_pocket("input.pdb", "pocket.pdb",
-              ligand_center=[15.3, 24.7, 32.1], 
-              radius=8.5)
-```
-
----
-
-## Usage Guide
-
-### 🔍 Extracting Binding Pockets
-
-#### Method 1: Ligand File (SDF/MOL2/PDB)
-_Calculate pocket from ligand structure_  
-**CLI**:
-```bash
-extract_pocket input.pdb --ligand_file ligand.sdf -o pocket.pdb --radius 12.5
-```
-
-**Python**:
+**Python:**
 ```python
 from pocket_extraction import extract_pocket, get_ligand_coords
 
-ligand_coords = get_ligand_coords("ligand.mol2")
-extract_pocket("input.pdb", "pocket.pdb", 
-              ligand_coords=ligand_coords, 
-              radius=12.5)
+# Option A: Using an existing ligand file
+ligand_coords = get_ligand_coords("ligand.pdb")
+extract_pocket("input.pdb", "pocket.pdb", ligand_coords=ligand_coords, radius=12.5)
+
+# Option B: Using manually provided coordinates
+extract_pocket("input.cif", "pocket.cif", ligand_center=[10.0, 20.0, 30.0], radius=10.0)
 ```
 
-#### Method 2: Manual Coordinates
-_Specify exact pocket center_  
-**CLI**:
+*Note: Choose the option that matches your data source. The only difference is in providing either a ligand file (or coordinates obtained from it) or manual coordinates.*
+
+---
+
+### 2. Extracting Ligands
+
+**CLI:**
 ```bash
-extract_pocket input.pdb --ligand_center 10.0 20.0 30.0 -o pocket.pdb
+# For a specific ligand or multiple ligands:
+extract_ligand input.pdb -o output_path --ligands NAD         # Single ligand
+extract_ligand input.cif -o output_dir --ligands ATP NAD --multi  # Multiple ligands, each saved separately
 ```
 
-**Python**:
+**Python:**
 ```python
-extract_pocket("input.pdb", "pocket.pdb",
-              ligand_center=[10.0, 20.0, 30.0],
-              radius=10.0)  # Default radius
+from pocket_extraction import extract_ligand
+
+# Example for a specific ligand with optional filtering parameters:
+extract_ligand("input.pdb", "nad.pdb", ligand_names=["NAD"], model_id=0, chain_id="A")
+
+# Example for multiple ligands:
+extract_ligand("input.cif", "output_dir/", ligand_names=["ATP", "NAD"], multi_mode=True)
 ```
 
 ---
 
-### ⚗️ Extracting Ligands
+### 3. Combined Extraction of Ligands and Pockets
 
-#### Case 1: Specific Ligand by Name
-**CLI**:
+Use the combined function for simultaneous extraction. Adjust parameters based on your workflow:
+
+**CLI:**
 ```bash
-extract_ligand input.pdb -o nad.pdb --ligand_names NAD
+# Example 1: Merged multi-residue ligand with a unified pocket
+extract_ligand_and_pocket input.pdb -l ligand.pdb -p pocket.pdb --ligand_names HIS ARG --model_id 0 --chain_id E --radius 12.0
+
+# Example 2: Separate files for each ligand and pocket:
+extract_ligand_and_pocket input.pdb -l ligands/ -p pockets/ --ligands ATP NAD --multi --radius 10.0
+
+# Example 3: Automatic extraction of all non-solvent ligands and pockets:
+extract_ligand_and_pocket input.pdb -l auto_ligands/ -p auto_pockets/ --multi --radius 10.0
 ```
 
-**Python**:
-```python
-extract_ligand("input.pdb", "nad.pdb",
-              ligand_names=["NAD"],
-              model_id=0,  # First model
-              chain_id="A")
-```
-
-#### Case 2: Multiple Ligands Separately
-**CLI**:
-```bash
-extract_ligand input.pdb -o ligands/ --ligand_names ATP NAD --multi_ligand
-```
-_Outputs_: `ligands/ligand_1.pdb`, `ligands/ligand_2.pdb`
-
-**Python**:
-```python
-extract_ligand("input.pdb", "output_dir/",
-              ligand_names=["ATP", "NAD"],
-              multi_ligand=True)
-```
-
-#### Case 3: All Non-Solvent HETATM Residues
-**CLI**:
-```bash
-extract_ligand input.pdb -o all_ligands.pdb
-```
-
-**Python**:
-```python
-extract_ligand("input.pdb", "all_ligands.pdb")
-```
-
-### Extracting Ligands and Pockets Together
-
-Efficiently extract **ligands and their binding pockets** in one step using unified workflows. Choose from three modes depending on your use case:
-
----
-
-#### Case 1: Merged Multi-Residue Ligands with Unified Pocket 
-*Combine fragmented ligand residues into a single structure and extract their shared binding pocket.*  
-  
-**Use Cases**:  
-• **Large/complex ligands** (e.g., ATP, NADH) split across multiple residues in PDB files  
-• **Metal-cofactor systems** where ligands consist of multiple coordinated residues  
-• **Cryo-EM/X-ray structures** with discontinuous ligand density assignments  
-
-**CLI**:
-```bash
-extract_ligand_and_pocket input.pdb \
-  -l ligand.pdb \
-  -p pocket.pdb \
-  --ligand_names HIS ARG \
-  --model_id 0 \
-  --chain_id E \
-  --radius 12.0
-```
-
-**Python**:
+**Python:**
 ```python
 from pocket_extraction import extract_ligand_and_pocket
 
+# Option: Customize parameters for your workflow.
 extract_ligand_and_pocket(
-    pdb_path="input.pdb",
-    ligand_output="ligand.pdb",
-    pocket_output="pocket.pdb",
-    ligand_names=["ATP", "NAD"],
-    model_id=0,
-    chain_id="E",
-    radius=12.0
+    pdb_file="input.pdb",      # or pdb_path for automatic extraction
+    ligand_path="ligand.pdb",  # or a directory (e.g., "ligands/")
+    pocket_path="pocket.pdb",  # or a directory (e.g., "pockets/")
+    ligand_names=["ATP", "NAD"],   # omit or adjust as needed
+    model_id=0,                # optional filtering
+    chain_id="E",              # optional filtering
+    multi_mode=True,           # set to True for separate files
+    radius=12.0                # adjust the search radius
 )
 ```
 
----
-
-#### Case 2: Individual Pockets for Each Ligand  
-*Extract ligands and pockets into separate files.*  
-**Use Case**: Compare binding environments of distinct ligands.
-
-**CLI**:
-```bash
-extract_ligand_and_pocket input.pdb \
-  -l ligands/ \
-  -p pockets/ \
-  --ligand_names ATP NAD \
-  --multi_ligand \
-  --radius 10.0
-```
-
-
-**Python**:
-```python
-extract_ligand_and_pocket(
-    pdb_path="input.pdb",
-    ligand_output="ligands/",
-    pocket_output="pockets/",
-    ligand_names=["ATP", "NAD"],
-    multi_ligand=True,
-    radius=10.0
-)
-```
-
----
-
-#### Case 3: Extract All Ligands & Pockets  
-*Automatically process all non-solvent HETATM residues.*  
-**Use Case**: High-throughput screening of unknown ligands.
-
-**CLI**:
-```bash
-extract_ligand_and_pocket input.pdb \
-  -l auto_ligands/ \
-  -p auto_pockets/ \
-  --multi_ligand \
-  --radius 10.0
-```
-
-**Python**:
-```python
-extract_ligand_and_pocket(
-    pdb_path="input.pdb",
-    ligand_output="auto_ligands/",
-    pocket_output="auto_pockets/",
-    multi_ligand=True,
-    radius=10.0
-)
-```
+*Note: The Python interface uses similar parameters to the CLI. The function adapts based on whether single files or directories are provided, and whether multi_mode is enabled.*
 
 ---
 
 ## License
-MIT License. See [LICENSE](LICENSE) for details.
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ---
 
 ## Author
+
 **Hanker Wu**  
 📧 GitHub: [HankerWu](https://github.com/HankerWu/pocket_extraction)  
 💬 *For bug reports or feature requests, please open a GitHub issue.*

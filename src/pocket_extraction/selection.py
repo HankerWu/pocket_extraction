@@ -114,7 +114,7 @@ class LigandSelect(Select):
             self, 
             ligand_names: Optional[List[str]] = None, 
             model_id: Optional[int] = None, 
-            chain_id: Optional[int] = None
+            chain_id: Optional[str] = None
         ):
         self.ligand_names = ligand_names
         if self.ligand_names is not None:

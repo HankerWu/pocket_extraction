@@ -2,7 +2,9 @@ from Bio.PDB import Select
 from Bio import PDB
 import numpy as np
 from typing import Optional, List
+import os
 from os.path import dirname
+from pathlib import Path
 
 # Mapping of three-letter residue codes to one-letter codes
 residue_name_to_one_letter_code = {
@@ -32,22 +34,109 @@ def get_remove_ligands():
     remove_ligands += ["DMS", "ZN", "SO4", "GOL", "BTB"]
     remove_ligands = set(remove_ligands)
     return remove_ligands
-            
-def save_structure(filename, structure, select, ext):
-    if ext == ".cif":
-        io = PDB.MMCIFIO()
+
+def process_output_path(output_path: str, base_name: str, ext: Optional[str] = None, index: Optional[int] = None) -> str:
+    """Process output path with proper extension handling.
+    
+    Args:
+        output_path: User-specified output path (could be file or directory)
+        base_name: Default base name if path is directory
+        ext: User-specified extension override
+        index: Counter for multi-file mode
+    
+    Returns:
+        Full output path with proper extension
+    """
+    output_dir, filename = os.path.split(output_path)
+    
+    # Handle directory path case
+    if not filename:
+        filename = f"{base_name}_{index}" if index else base_name
+    
+    # Split name and original extension
+    name_part, orig_ext = os.path.splitext(filename)
+    orig_ext = orig_ext.lstrip('.').lower()  # Normalize extension
+    
+    # Determine final extension priority: user specified > filename extension > default pdb
+    final_ext = (ext or orig_ext or 'pdb').lower()
+    
+    # Validate supported formats
+    if final_ext not in ('pdb', 'cif'):
+        raise ValueError(f"Unsupported output format: {final_ext}. Use 'pdb' or 'cif'.")
+    
+    # Construct final filename
+    final_name = f"{name_part}.{final_ext}"
+    
+    # Create directory if needed
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    
+    return os.path.join(output_dir, final_name)
+
+def load_structure(pdb_file):
+    # Load the structure
+    input_ext = pdb_file.split(".")[-1]
+    if input_ext == "pdb":
+        structure = PDB.PDBParser(QUIET=True).get_structure("pdb_file", pdb_file)
+    elif input_ext == "cif":
+        structure = PDB.MMCIFParser(QUIET=True).get_structure("pdb_file", pdb_file)
     else:
-        io = PDB.PDBIO()
-    io.set_structure(structure)
-    try:
-        io.save(str(filename), select=select)
-    except TypeError as e:
-        # Clean bad file.
-        if filename.exists():
-            filename.unlink()
-        if str(e) == "%c requires int or char":
-            raise RuntimeError("Chain id is not a single char") from e
-        else:
-            raise
+        raise ValueError(f"Unsupported file extension: {input_ext}")
+    return structure
+            
+def save_structure(filename, structure, select=PDB.Select()):
+    """Save structural data to file with robust error handling.
+    
+    Args:
+        filename: Output path (str or Path)
+        structure: Biopython Structure object
+        select: Residue selection criteria (default: all)
         
+    Raises:
+        ValueError: Unsupported file format
+        RuntimeError: Chain ID issues or cleanup failures
+        IOError: File system errors during save
+    """
+    path = Path(filename).resolve()
+    suffix = path.suffix.lower()
+    
+    # Validate file format
+    if suffix not in (".pdb", ".cif"):
+        raise ValueError(
+            f"Unsupported format '{suffix}'. Use .pdb or .cif"
+        )
+
+    # Initialize appropriate IO object
+    io = PDB.MMCIFIO() if suffix == ".cif" else PDB.PDBIO()
+    io.set_structure(structure)
+
+    try:
+        # Ensure parent directory exists
+        path.parent.mkdir(parents=True, exist_ok=True)
+        io.save(str(path), select=select)
+        
+    except Exception as save_error:
+        # Clean up partial files on any error
+        if path.exists():
+            try:
+                path.unlink()
+            except Exception as cleanup_error:
+                raise RuntimeError(
+                    f"Failed to clean up corrupted file: {cleanup_error}"
+                ) from save_error
+
+        # Handle specific PDB format constraints
+        if (
+            suffix == ".pdb" 
+            and isinstance(save_error, TypeError)
+            and "requires int or char" in str(save_error)
+        ):
+            raise RuntimeError(
+                "Invalid PDB chain ID detected. Must be single character."
+            ) from save_error
+
+        # Re-raise original error with additional context
+        raise type(save_error)(
+            f"Failed to save structure to {path}: {save_error}"
+        ) from save_error
         

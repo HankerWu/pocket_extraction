@@ -1,94 +1,135 @@
 import argparse
-from Bio import PDB
-from .data_utils import save_structure
-from .selection import LigandSelect, PocketSelect
-import numpy as np
+import logging
 import os
+import numpy as np
+from typing import Tuple, List, Optional
+from pathlib import Path
+from Bio import PDB
+from .data_utils import load_structure, save_structure, process_output_path
+from .selection import LigandSelect, PocketSelect
 
-def extract_ligand_and_pocket(pdb_file, ligand_file, pocket_file, ligand_names=None, 
-                             model_id=None, chain_id=None, multi_ligand=False, 
-                             radius=10.0, ext=".pdb"):
-    """Extract ligands and corresponding binding pockets from a PDB file."""
-    
-    # Load the structure
-    structure = PDB.PDBParser(QUIET=True).get_structure("STRUCTURE", pdb_file)
+logger = logging.getLogger(__name__)
 
-    # Extract ligands
-    ligand_select = LigandSelect(ligand_names=ligand_names, model_id=model_id, chain_id=chain_id)
-    ligand_structures = []
-    for model in structure:
-        if not ligand_select.accept_model(model):
-            continue
-        for chain in model:
-            if not ligand_select.accept_chain(chain):
-                continue
-            for residue in chain.get_unpacked_list():
-                if ligand_select.accept_residue(residue):
-                    ligand_structures.append(residue)
-
-    if not ligand_structures:
-        raise ValueError("No ligands found matching the given criteria.")
-
-    if multi_ligand:
-        # Parse output paths
-        lig_dir, lig_filename = os.path.split(ligand_file)
-        pocket_dir, pocket_filename = os.path.split(pocket_file)
+def extract_ligand_and_pocket(
+    pdb_file: str,
+    ligand_path: str,
+    pocket_path: str,
+    ligand_names: Optional[List] = None,
+    model_id: Optional[int] = None,
+    chain_id: Optional[str] = None,
+    multi_mode: bool = False,
+    radius: float = 10.0,
+    ext: Optional[str] = None
+) -> Tuple[int, str|None, str|None]:
+    """Main extraction logic with unified error handling."""
+    try:
+        structure = load_structure(pdb_file)
+        ligand_selector = LigandSelect(ligand_names, model_id, chain_id)
         
-        # Get base names (use default if directory)
-        lig_base = os.path.splitext(lig_filename)[0] if lig_filename else "ligand"
-        pocket_base = os.path.splitext(pocket_filename)[0] if pocket_filename else f"pocket"
-
-        # Create output directories
-        os.makedirs(lig_dir, exist_ok=True) if lig_dir else None
-        os.makedirs(pocket_dir, exist_ok=True) if pocket_dir else None
-
-        # Process each ligand
-        for i, lig_res in enumerate(ligand_structures, 1):
-            # Generate ligand filename
-            ligand_name = lig_res.get_resname().strip()
-            lig_output = os.path.join(lig_dir, f"{ligand_name}_{lig_base}_{i}{ext}")
-            save_structure(lig_output, lig_res, ligand_select, ext)
-
-            # Generate pocket filename
-            pocket_output = os.path.join(pocket_dir, f"{ligand_name}_{pocket_base}_{i}{ext}")
+        # Find matching ligands
+        ligands = []
+        for model in structure:
+            if not ligand_selector.accept_model(model):
+                continue
+            for chain in model:
+                if not ligand_selector.accept_chain(chain):
+                    continue
+                ligands.extend(res for res in chain.get_unpacked_list() 
+                             if ligand_selector.accept_residue(res))
+        
+        if not ligands:
+            logger.error("No ligands found matching criteria")
+            return 0, None, None
+        
+        # Handle output modes
+        if not multi_mode:
+            # Single file mode
+            lig_file = process_output_path(ligand_path, "ligand", ext)
+            save_structure(lig_file, structure, ligand_selector)
             
-            # Extract pocket
-            lig_coords = np.array([atom.coord for atom in lig_res.get_atoms()])
-            pocket_select = PocketSelect(radius=radius, ligand_coords=lig_coords)
-            save_structure(pocket_output, structure, pocket_select, ext)
-        return len(ligand_structures)
-    else:  
-        # Save merged ligands
-        save_structure(ligand_file, structure, ligand_select, ext)
-
-        # Extract combined pocket
-        all_coords = np.array([atom.coord for lig in ligand_structures for atom in lig.get_atoms()])
-        pocket_select = PocketSelect(radius=radius, ligand_coords=all_coords)
-        save_structure(pocket_file, structure, pocket_select, ext)
-
-        return 1
+            # Extract combined pocket
+            all_coords = np.array([atom.coord for lig in ligands for atom in lig.get_atoms()])
+            pocket_selector = PocketSelect(radius=radius, ligand_coords=all_coords)
+            pocket_file = process_output_path(pocket_path, "pocket", ext)
+            save_structure(pocket_file, structure, pocket_selector)
+            return 1, lig_file, pocket_file
+        
+        else:
+            # Multi-file mode
+            count = 0
+            for idx, lig in enumerate(ligands, 1):
+                # Save ligand
+                lig_name = lig.get_resname().strip()
+                lig_file = process_output_path(
+                    ligand_path, lig_name, ext, idx
+                )
+                save_structure(lig_file, lig)
+                
+                # Save corresponding pocket
+                pocket_coords = np.array([atom.coord for atom in lig.get_atoms()])
+                pocket_selector = PocketSelect(radius, pocket_coords)
+                pocket_file = process_output_path(
+                    pocket_path, f"{lig_name}_pocket", ext, idx
+                )
+                save_structure(pocket_file, structure, pocket_selector)
+                count += 1
+            return count, os.path.dirname(ligand_path), os.path.dirname(pocket_path)
+        
+    except Exception as e:
+        logger.error(f"Extraction failed: {str(e)}")
+        raise
 
 def main():
-    parser = argparse.ArgumentParser(description="Extract ligands and their binding pockets from a PDB file.")
-    parser.add_argument("pdb_file", type=str, help="Input PDB file")
-    parser.add_argument("-l", "--ligand_file", type=str, default="ligand.pdb", help="Output ligand file")
-    parser.add_argument("-p", "--pocket_file", type=str, default="pocket.pdb", help="Output pocket file")
-    parser.add_argument("--ligand_names", type=str, nargs="+", default=None, help="Ligand names in PDB file")
-    parser.add_argument("--model_id", type=int, default=None, help="Model ID (default: None)")
-    parser.add_argument("--chain_id", type=str, default=None, help="Chain ID (default: None)")
-    parser.add_argument("--multi_ligand", action="store_true", help="Extract multiple ligands separately")
-    parser.add_argument("--radius", type=float, default=10.0, help="Pocket search radius")
-    parser.add_argument("--ext", type=str, choices=[".pdb", ".cif"], default=".pdb", help="Output file format")
-
-    args = parser.parse_args()
-    num_ligands = extract_ligand_and_pocket(
-        args.pdb_file, args.ligand_file, args.pocket_file,
-        args.ligand_names, args.model_id, args.chain_id, 
-        args.multi_ligand, args.radius, args.ext
+    """CLI interface with unified argument handling."""
+    parser = argparse.ArgumentParser(
+        description="Extract ligands and corresponding binding pockets"
     )
-    print(f"Extraction complete. Ligands saved to {args.ligand_file} and pockets saved to {args.pocket_file}")
-    if args.multi_ligand:
-        print(f"Number of pocket-ligand pairs extracted: {num_ligands}")
+    parser.add_argument("pdb_file", help="Input structure (PDB/mmCIF)")
+    parser.add_argument("-l", "--ligand", default="ligand.pdb",
+                      help="Output ligand path (file/directory)")
+    parser.add_argument("-p", "--pocket", default="pocket.pdb",
+                      help="Output pocket path (file/directory)")
+    parser.add_argument("--ligands", nargs="+",
+                      help="Target ligand names (e.g. ATP PO4)")
+    parser.add_argument("--model", type=int,
+                      help="Specific model ID")
+    parser.add_argument("--chain", type=str,
+                      help="Specific chain ID")
+    parser.add_argument("--multi", action="store_true",
+                      help="Separate files per ligand-pocket pair")
+    parser.add_argument("-r", "--radius", type=float, default=10.0,
+                      help="Pocket radius in Å (default: 10.0)")
+    parser.add_argument("--ext", choices=["pdb", "cif"],
+                      help="Output format override")
+    
+    args = parser.parse_args()
+    
+    try:
+        count, lig_path, pocket_path = extract_ligand_and_pocket(
+            args.pdb_file,
+            args.ligand,
+            args.pocket,
+            args.ligands,
+            args.model,
+            args.chain,
+            args.multi,
+            args.radius,
+            args.ext
+        )
+        
+        if args.multi:
+            print(f"Extracted {count} ligand-pocket pairs to directories:")
+            print(f"Ligands: {lig_path if lig_path else '.'}")
+            print(f"Pockets: {pocket_path if pocket_path else '.'}")
+        else:
+            print(f"Successfully extracted ligand-pocket pair to:")
+            print(f"Ligand: {lig_path if lig_path else './'}")
+            print(f"Pocket: {pocket_path if pocket_path else './'}")
+            
+    except Exception as e:
+        logger.error(f"Fatal error: {str(e)}")
+        exit(1)
 
 if __name__ == "__main__":
     main()
+    
