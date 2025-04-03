@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pocket_extraction"
-version = "0.1.3"
+version = "0.1.4"
 authors = [
     {name = "Hanker", email = "wu_2018@mail.ustc.edu.cn"}
 ]

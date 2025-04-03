@@ -1,119 +1,122 @@
 import argparse
-import os
-import logging
-from Bio import PDB
-from rdkit import Chem
 import numpy as np
+from typing import Optional
+from pathlib import Path
+from Bio import PDB
 from .data_utils import load_structure, save_structure, process_output_path
 from .selection import PocketSelect
+from .logger import logger, setup_logger
 
-logger = logging.getLogger(__name__)
-
-def get_ligand_coords(ligand_file):
-    """Extract ligand coordinates from various chemical file formats."""
-    ext = os.path.splitext(ligand_file)[1].lower().lstrip('.')
+def get_ligand_coords(ligand_file: str, quiet: bool = False) -> np.ndarray:
+    """Extract coordinates from ligand structure file."""
+    path = Path(ligand_file)
+    suffix = path.suffix.lower()
     
-    if ext == "sdf":
-        return _get_coords_from_sdf(ligand_file)
-    if ext == "mol2":
-        return _get_coords_from_mol2(ligand_file)
-    if ext in ["pdb", "ent"]:
-        return _get_coords_from_pdb(ligand_file)
-    if ext in ["cif", "mmcif"]:
-        return _get_coords_from_cif(ligand_file)
+    try:
+        if suffix == ".pdb":
+            struct = PDB.PDBParser(QUIET=quiet).get_structure("ligand", str(path))
+        elif suffix in (".cif", ".mmcif"):
+            struct = PDB.MMCIFParser(QUIET=quiet).get_structure("ligand", str(path))
+        else:
+            raise ValueError(f"Unsupported ligand format: {suffix}")
+            
+        return np.array([atom.coord for atom in struct.get_atoms()])
+    except Exception as e:
+        logger.error(f"Failed to process {path}: {str(e)}")
+        raise
+
+def extract_pocket(
+    pdb_file: str,
+    output_path: str,
+    ligand_coords: Optional[np.ndarray] = None,
+    ligand_center: Optional[np.ndarray] = None,
+    radius: float = 10.0,
+    ext: Optional[str] = None,
+    quiet: bool = False
+) -> str:
+    """Extract pocket around specified ligand coordinates."""
+    if radius <= 0:
+        raise ValueError("Radius must be positive")
     
-    raise ValueError(f"Unsupported ligand file format: {ext}")
-
-def _get_coords_from_sdf(sdf_file):
-    """Extract coordinates from SDF file using RDKit."""
-    suppl = Chem.SDMolSupplier(sdf_file)
-    for mol in suppl:
-        if mol:
-            return np.array([mol.GetConformer().GetAtomPosition(i) for i in range(mol.GetNumAtoms())])
-    raise ValueError(f"No valid molecules in SDF file: {sdf_file}")
-
-def _get_coords_from_mol2(mol2_file):
-    """Extract coordinates from MOL2 file using RDKit."""
-    mol = Chem.MolFromMol2File(mol2_file)
-    if not mol:
-        raise ValueError(f"Failed to read MOL2 file: {mol2_file}")
-    return np.array([mol.GetConformer().GetAtomPosition(i) for i in range(mol.GetNumAtoms())])
-
-def _get_coords_from_pdb(pdb_file):
-    """Extract coordinates from PDB file using Biopython."""
-    parser = PDB.PDBParser(QUIET=True)
-    structure = parser.get_structure("ligand", pdb_file)
-    return np.array([atom.coord for atom in structure.get_atoms()])
-
-def _get_coords_from_cif(cif_file):
-    """Extract coordinates from CIF file using Biopython."""
-    parser = PDB.MMCIFParser(QUIET=True)
-    structure = parser.get_structure("ligand", cif_file)
-    return np.array([atom.coord for atom in structure.get_atoms()])
-
-
-def extract_pocket(pdb_file, output_path, ligand_coords=None, ligand_center=None, radius=10.0, ext=None):
-    """Main pocket extraction logic with improved file handling."""
-    # Validate input coordinates
-    if ligand_coords is None and ligand_center is None:
-        raise ValueError("Must provide either ligand coordinates or center")
-    
-    # Process output path
     output_path = process_output_path(output_path, "pocket", ext)
     
-    # Load structure and create selector
-    structure = load_structure(pdb_file)
-    selector = PocketSelect(
-        ligand_coords=ligand_coords,
-        ligand_center=ligand_center,
-        radius=radius
-    )
-    
-    # Save the pocket structure
-    save_structure(output_path, structure, selector)
-    return output_path
+    try:
+        structure = load_structure(pdb_file, quiet)
+        selector = PocketSelect(
+            radius=radius,
+            ligand_coords=ligand_coords,
+            ligand_center=ligand_center,
+            quiet=quiet
+        )
+        
+        save_structure(output_path, structure, selector, quiet)
+        return output_path
+    except Exception as e:
+        logger.exception("Pocket extraction failed")
+        raise
 
 def main():
-    parser = argparse.ArgumentParser(description="Extract protein pocket based on ligand proximity")
-    parser.add_argument("pdb_file", help="Input protein structure (PDB/mmCIF)")
+    """CLI for pocket extraction."""
+    parser = argparse.ArgumentParser(
+        description="Extract binding pockets from structures",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    # Input/output
+    parser.add_argument("pdb_file", help="Input structure file")
     parser.add_argument("-o", "--output", default="pocket.pdb",
-                      help="Output path for pocket structure (directory or filename)")
-    parser.add_argument("--ligand_file", help="Ligand structure file (SDF/MOL2/PDB/CIF)")
-    parser.add_argument("--ligand_center", nargs=3, type=float,
-                      help="Manual ligand center coordinates (X Y Z)")
+                      help="Output path (file/directory)")
+    
+    # Ligand specification
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--ligand_file", help="Ligand structure file")
+    group.add_argument("--ligand_center", nargs=3, type=float,
+                     help="Manual ligand center coordinates (X Y Z)")
+    
+    # Parameters
     parser.add_argument("-r", "--radius", type=float, default=10.0,
-                      help="Pocket radius in Angstroms (default: 10.0)")
-    parser.add_argument("--ext", choices=["pdb", "cif"], 
-                      help="Force output format (default: auto from filename)")
+                      help="Pocket radius in Angstroms")
+    parser.add_argument("--ext", choices=["pdb", "cif"],
+                      help="Output format override")
+    
+    # Logging
+    parser.add_argument("-q", "--quiet", action="store_true",
+                      help="Suppress informational output")
+    parser.add_argument("--debug", action="store_true",
+                      help="Enable debug logging")
+    parser.add_argument("--logfile", help="Path to log file")
     
     args = parser.parse_args()
     
-    # Validate input
-    if not (args.ligand_file or args.ligand_center):
-        parser.error("Must provide either --ligand_file or --ligand_center")
-    
-    # Get ligand coordinates
-    ligand_coords = None
-    if args.ligand_file:
-        try:
-            ligand_coords = get_ligand_coords(args.ligand_file)
-        except Exception as e:
-            logger.error(f"Failed to process ligand file: {str(e)}")
-            return
-    
-    # Extract and save pocket
     try:
-        output_path = extract_pocket(
+        # Configure logging
+        setup_logger(
+            quiet=args.quiet,
+            debug=args.debug,
+            logfile=args.logfile
+        )
+        
+        # Process ligand coordinates
+        ligand_coords = None
+        if args.ligand_file:
+            ligand_coords = get_ligand_coords(args.ligand_file, args.quiet)
+        
+        # Perform extraction
+        output = extract_pocket(
             pdb_file=args.pdb_file,
             output_path=args.output,
             ligand_coords=ligand_coords,
             ligand_center=args.ligand_center,
             radius=args.radius,
-            ext=args.ext
+            ext=args.ext,
+            quiet=args.quiet
         )
-        print(f"Successfully saved pocket to: {output_path if output_path else '.'}")
+        
+        if not args.quiet:
+            logger.info(f"Pocket saved to: {output}")
+            
     except Exception as e:
-        logger.error(f"Pocket extraction failed: {str(e)}")
+        logger.exception("Fatal error")
+        exit(1)
 
 if __name__ == "__main__":
     main()
