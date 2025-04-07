@@ -46,7 +46,7 @@ def extract_ligand(
         
         # Save results
         count = 0
-        if not multi:
+        if not multi or len(ligands) == 1:
             out_path = process_output_path(
                 output_path,
                 "ligand" if output_is_dir else Path(output_path).stem,
@@ -55,7 +55,7 @@ def extract_ligand(
             save_structure(out_path, structure, selector, quiet)
             count = len(ligands)
         else:
-            for i, lig in enumerate(ligands, 1):
+            for i, lig in enumerate(ligands):
                 out_path = process_output_path(
                     output_path,
                     f"{lig.get_resname()}_{lig.get_parent().id}",

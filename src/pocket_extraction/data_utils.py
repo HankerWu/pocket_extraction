@@ -104,12 +104,13 @@ def process_output_path(output_path: str, base_name: str, ext: Optional[str] = N
         filename = base_name
     else:
         output_dir, filename = os.path.split(output_path)
-        
-    if index:
-        filename = f"{filename}_{index}"
     
     # Split name and original extension
     name_part, orig_ext = os.path.splitext(filename)
+    
+    if index:
+        name_part = f"{name_part}_{index}"
+         
     orig_ext = orig_ext.lstrip('.').lower()  # Normalize extension
     
     # Determine final extension priority: user specified > filename extension > default pdb

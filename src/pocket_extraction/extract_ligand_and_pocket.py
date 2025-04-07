@@ -46,7 +46,7 @@ def extract_ligand_and_pocket(
         
         # Process based on mode
         count = 0
-        if not multi:
+        if not multi or len(ligands) == 1:
             # Combined output
             lig_file = process_output_path(output_ligand, "ligand", ext)
             save_structure(lig_file, structure, ligand_selector, quiet)
@@ -65,7 +65,7 @@ def extract_ligand_and_pocket(
             count = len(ligands)
         else:
             # Per-ligand output
-            for idx, lig in enumerate(ligands, 1):
+            for idx, lig in enumerate(ligands):
                 # Save ligand
                 lig_name = f"{lig.get_resname()}_{lig.get_parent().id}"
                 lig_file = process_output_path(output_ligand, lig_name, ext, idx)
@@ -128,7 +128,7 @@ def main():
         )
         
         if not args.quiet:
-            logger.info(f"Successfully processed {count} ligand-pocket pairs")
+            logger.info(f"Successfully processed {count} ligand-pocket pairs to: {args.output_ligand} and {args.output_pocket}")
             
     except Exception as e:
         logger.exception("Fatal error")
