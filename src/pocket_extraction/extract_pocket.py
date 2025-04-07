@@ -52,7 +52,7 @@ def extract_pocket(
         save_structure(output_path, structure, selector, quiet)
         return output_path
     except Exception as e:
-        logger.exception("Pocket extraction failed")
+        logger.exception(f"Pocket extraction failed for {pdb_file}: {(e)}")
         raise
 
 def main():

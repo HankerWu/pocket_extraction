@@ -40,7 +40,8 @@ def extract_ligand(
                         ligands.append(res)
         
         if not ligands:
-            logger.warning("No matching ligands found")
+            if not quiet:
+                logger.warning(f"No matching ligands found for {pdb_file}.")
             return 0
         
         # Save results
@@ -65,11 +66,12 @@ def extract_ligand(
                 save_structure(out_path, lig, quiet=quiet)
                 count += 1
         
-        logger.info(f"Extracted {count} ligand(s)")
+        if not quiet:
+            logger.info(f"Extracted {count} ligand(s) from {pdb_file} to: {output_path}")
         return count
         
     except Exception as e:
-        logger.exception("Ligand extraction failed")
+        logger.exception(f"Ligand extraction failed for {pdb_file}: {e}")
         raise
 
 def main():

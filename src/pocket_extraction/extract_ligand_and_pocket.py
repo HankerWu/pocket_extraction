@@ -40,7 +40,8 @@ def extract_ligand_and_pocket(
                              if ligand_selector.accept_residue(res))
         
         if not ligands:
-            logger.warning("No matching ligands found")
+            if not quiet:
+                logger.warning(f"No matching ligands found for {pdb_file}.")
             return 0
         
         # Process based on mode
@@ -87,11 +88,12 @@ def extract_ligand_and_pocket(
                 
                 count += 1
         
-        logger.info(f"Processed {count} ligand-pocket pairs")
+        if not quiet:
+            logger.info(f"Processed {count} ligand-pocket pairs from {pdb_file}.")
         return count
         
     except Exception as e:
-        logger.exception("Combined extraction failed")
+        logger.exception(f"Extraction failed for {pdb_file}: {e}")
         raise
 
 def main():
