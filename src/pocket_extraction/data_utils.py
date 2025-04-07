@@ -1,9 +1,11 @@
+import numpy as np
+import os
+import requests
+import tempfile
 from Bio import PDB
 from Bio.PDB import Select
 from Bio.PDB.Structure import Structure
-import numpy as np
 from typing import Optional, List, Union, Set
-import os
 from pathlib import Path
 from .logger import logger
 
@@ -22,6 +24,49 @@ AA_RADII = {
     "P": 1.9, "Q": 2.2, "R": 3.0, "S": 1.6, "T": 1.9, "V": 2.0,
     "W": 2.8, "Y": 2.5
 }
+
+def fetch_pdb(pdb_id: str, output_dir: Optional[str] = None, ext: str = 'pdb', quiet: bool = False, retry: int = 3) -> str:
+    """Fetch PDB file from RCSB database.
+    
+    Args:
+        pdb_id: PDB ID to fetch.
+        output_dir: Directory to save the file. Default is a temporary directory.
+        ext: File extension (pdb or cif). Default is 'pdb'.
+        quiet: Suppress output messages.
+        retry: Number of retries on failure.
+    Returns:
+        Path to the downloaded file.
+    """    
+    if ext not in ('pdb', 'cif'):
+        raise ValueError("Extension must be 'pdb' or 'cif'")
+    
+    url = f"https://files.rcsb.org/download/{pdb_id}.{ext}"
+    if output_dir is None:
+        output_dir = tempfile.gettempdir()
+    
+    output_path = os.path.join(output_dir, f"{pdb_id}.{ext}")
+    
+    for attempt in range(retry):
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            with open(output_path, 'wb') as f:
+                f.write(response.content)
+            if not quiet:
+                logger.info(f"Downloaded {url} to {output_path}")
+            return output_path
+        except requests.RequestException as e:
+            if attempt < retry - 1:
+                if not quiet:
+                    logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying...")
+            else:
+                logger.error(f"Failed to download {url}: {e}")
+                raise
+    return output_path
+
+def is_valid_pdb_id(pdb_id: str) -> bool:
+    """Check if the given string is a valid PDB ID."""
+    return len(pdb_id) == 4 and pdb_id.isalnum()
 
 def get_remove_ligands() -> Set[str]:
     """Get set of ligand names to exclude from extraction."""
@@ -85,6 +130,12 @@ def process_output_path(output_path: str, base_name: str, ext: Optional[str] = N
 
 def load_structure(pdb_file: str, quiet: bool = False) -> Structure:
     """Load structure from file with format autodetection."""
+    if not os.path.isfile(pdb_file):
+        if is_valid_pdb_id(pdb_file):
+            pdb_file = fetch_pdb(pdb_file, quiet=quiet)
+        else:
+            raise ValueError(f"Invalid PDB ID or file: {pdb_file}")
+        
     path = Path(pdb_file)
     suffix = path.suffix.lower()
     

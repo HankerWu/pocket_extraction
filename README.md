@@ -1,4 +1,4 @@
-# Pocket Extraction
+# Pocket Extraction 
 
 **Pocket Extraction** is a Python package built on **Biopython** for extracting ligands and binding pockets from structural biology files (PDB/mmCIF). It supports high-throughput screening as well as detailed structural analyses.
 
@@ -10,13 +10,13 @@
   Extract pockets around ligands using either:
   - An existing ligand file, or  
   - Manually specified coordinates  
-  *(Adjust the search radius as needed.)*
+  *(Adjust search radius with `--radius`)*
 
 - **Ligand Extraction**  
   Retrieve ligands by specifying names (single/multiple) or by automatically processing all non-solvent HETATM residues.
 
 - **Flexible I/O Support**  
-  - **Input:** PDB, mmCIF  
+  - **Input:** PDB, mmCIF
   - **Output:** PDB (default), mmCIF
 
 - **Advanced Filtering & Batch Processing**  
@@ -34,120 +34,156 @@ pip install pocket_extraction
 
 ---
 
+
 ## Command-line Arguments
 
-Different command-line tools support different arguments. Below is a breakdown of supported options per tool.
-
-### **`extract_pocket`**
-- `--ligand_file <file>`: Specify a ligand file to extract a binding pocket around.
-- `--ligand_center <x y z>`: Provide manual coordinates as the center of the pocket.
-- `--radius <value>`: Define the search radius for the pocket extraction.
-- `--model_id <id>`: Filter by model ID.
-- `--chain_id <id>`: Filter by chain ID.
-- `--exclude <residue(s)>`: Exclude specific residues (e.g., `HOH` for water molecules).
-- `--quiet`: Suppress output messages for silent execution.
-
-### **`extract_ligand`**
-- `--ligands <name(s)>`: Specify one or more ligand names for extraction.
-- `--multi`: Save each ligand separately when extracting multiple.
-- `--model_id <id>`: Filter by model ID.
-- `--chain_id <id>`: Filter by chain ID.
-- `--exclude <residue(s)>`: Exclude specific residues (e.g., `HOH` for water molecules).
-- `--quiet`: Suppress output messages for silent execution.
-
-### **`extract_ligand_and_pocket`**
-- `--ligands <name(s)>`: Specify one or more ligand names for extraction.
-- `--multi`: Save each ligand and pocket separately when extracting multiple.
-- `--model_id <id>`: Filter by model ID.
-- `--chain_id <id>`: Filter by chain ID.
-- `--radius <value>`: Define the search radius for pocket extraction.
-- `--exclude <residue(s)>`: Exclude specific residues (e.g., `HOH` for water molecules).
-- `--quiet`: Suppress output messages for silent execution.
+### Global Arguments (All Commands)
+| Argument | Description | Required | Default | Type |
+|----------|-------------|----------|---------|------|
+| `pdb_file` | Input PDB/mmCIF file or PDB ID | Yes | - | Path/Str |
+| `-o/--output` | Output path (file/directory) | No | `output.pdb` | Path |
+| `--ext` | Override output format | No | Auto-detect | {pdb, cif} |
+| `-q/--quiet` | Suppress informational output | No | `False` | Flag |
+| `--debug` | Enable debug logging | No | `False` | Flag |
+| `--logfile` | Path to save log file | No | None | Path |
 
 ---
 
-## Usage Examples
+### `extract_ligand` (Ligand Extraction)
+| Argument | Description | Required | Default | Type |
+|----------|-------------|----------|---------|------|
+| `--ligand_names` | Ligand residue names to extract (e.g., `RLZ HEM`) | No | All non-solvent | 1+ Strings |
+| `--exclude` | Residues to exclude (e.g., `HOH`) | No | None | 1+ Strings |
+| `-m/--model_ids` | Model IDs (0-based) to process | No | All models | 1+ Integers |
+| `-c/--chain_ids` | Chain IDs to process | No | All chains | 1+ Strings |
+| `--multi` | Save separate files per ligand | No | `False` | Flag |
 
-The package provides both CLI and Python interfaces. Below are examples of common use cases.
+---
 
-### 1. Extracting Binding Pockets
+### `extract_pocket` (Pocket Extraction)
+| Argument | Description | Required | Default | Type |
+|----------|-------------|----------|---------|------|
+| `--ligand_file` | Reference ligand structure file | Mutually Exclusive | - | Path |
+| `--ligand_center` | Manual center coordinates (X Y Z) | Mutually Exclusive | - | 3 Floats |
+| `-r/--radius` | Pocket radius in Angstroms | No | 10.0 | Float |
 
-#### CLI:
+---
+
+### `extract_ligand_and_pocket` (Combined Extraction)
+| Argument | Description | Required | Default | Type |
+|----------|-------------|----------|---------|------|
+| `-ol/--output_ligand` | Output path for ligands | No | `ligand.pdb` | Path |
+| `-op/--output_pocket` | Output path for pockets | No | `pocket.pdb` | Path |
+| `-r/--radius` | Pocket radius around ligands | No | 10.0 | Float |
+| *Inherits all arguments from `extract_ligand`* | | | | |
+
+## 💡 Usage Examples
+
+`pocket_extraction` supports both **command-line** and **Python API** usage. Below are examples demonstrating typical workflows using the structure `7AHN`.
+
+---
+
+### 🧪 1. **Extracting Binding Pockets**
+
+#### 🔧 Command-Line
+
 ```bash
-# Using an existing ligand file:
-extract_pocket input.pdb -o pocket.cif --ligand_file ligand.pdb --radius 12.5 --quiet
+# Extract a binding pocket around an existing ligand file
+extract_pocket 7AHN.pdb -o 7AHN_pocket.cif --ligand_file 7AHN_ligand.pdb --radius 12.5 --quiet
 
-# Using manual coordinates (specify ligand center):
-extract_pocket input.cif -o pocket.pdb --ligand_center 10.0 20.0 30.0 --radius 10.0 --exclude HOH
+# Extract a pocket using manually provided coordinates
+extract_pocket 7AHN -o 7AHN_pocket.pdb --ligand_center 117.21642 132.5165 129.84128 --radius 10.0
 ```
 
-#### Python:
+#### 🐍 Python
+
 ```python
 from pocket_extraction import extract_pocket, get_ligand_coords
 
-# Option A: Using an existing ligand file
-ligand_coords = get_ligand_coords("ligand.pdb")
-extract_pocket("input.pdb", "pocket.pdb", ligand_coords=ligand_coords, radius=12.5, quiet=True)
+# Option 1: Use coordinates extracted from a ligand file
+ligand_coords = get_ligand_coords("7AHN_ligand.pdb")
+extract_pocket("7AHN.pdb", "7AHN_pocket.pdb", ligand_coords=ligand_coords, radius=12.5, quiet=True)
 
-# Option B: Using manually provided coordinates
-extract_pocket("input.cif", "pocket.cif", ligand_center=[10.0, 20.0, 30.0], radius=10.0, exclude=["HOH"])
+# Option 2: Use manually specified coordinates
+extract_pocket("7AHN", "7AHN_pocket.cif", ligand_center=[117.21642, 132.5165, 129.84128], radius=10.0, quiet=True)
 ```
 
 ---
 
-### 2. Extracting Ligands
+### 💊 2. **Extracting Ligands**
 
-#### CLI:
+#### 🔧 Command-Line
+
 ```bash
-# Extract a specific ligand or multiple ligands:
-extract_ligand input.pdb -o output_path --ligands NAD --quiet        # Single ligand
-extract_ligand input.cif -o output_dir --ligands ATP NAD --multi --exclude HOH  # Multiple ligands, each saved separately
+# Extract a specific ligand by name and chain
+extract_ligand 7AHN -o 7AHN_RLZ_B_ligand.pdb --ligand_names RLZ --chain_ids B --quiet
+
+# Extract multiple ligands, excluding HIC, and save each one separately
+extract_ligand 7AHN -o 7AHN_ligands/ --multi --exclude HIC
 ```
 
-#### Python:
+#### 🐍 Python
+
 ```python
 from pocket_extraction import extract_ligand
 
-# Example for a specific ligand with optional filtering:
-extract_ligand("input.pdb", "nad.pdb", ligand_names=["NAD"], model_id=0, chain_id="A", quiet=True)
+# Extract a specific ligand with optional model and chain filtering
+extract_ligand("7AHN.pdb", "7AHN_RLZ_B_ligand.pdb", ligand_names=["RLZ"], model_ids=[0], chain_ids=["B"], quiet=True)
 
-# Example for multiple ligands:
-extract_ligand("input.cif", "output_dir/", ligand_names=["ATP", "NAD"], multi_mode=True, exclude=["HOH"])
+# Extract multiple ligands, each saved individually
+extract_ligand("7AHN", "7AHN_ligands/", ligand_names=["RLZ", "HIC"], multi=True)
 ```
 
 ---
 
-### 3. Combined Extraction of Ligands and Pockets
+### 🔗 3. **Extracting Both Ligands and Binding Pockets**
 
-Use the combined function for simultaneous extraction:
+#### 🔧 Command-Line
 
-#### CLI:
 ```bash
-# Example 1: Merged multi-residue ligand with a unified pocket
-extract_ligand_and_pocket input.pdb -l ligand.pdb -p pocket.pdb --ligands HIS ARG --model_id 0 --chain_id E --radius 12.0 --quiet
+# Example 1: Extract ligand (RLZ) and its pocket from model 0, chain B
+extract_ligand_and_pocket 7AHN \
+  -ol 7AHN_RLZ.pdb \
+  -op 7AHN_pocket.pdb \
+  --ligand_names RLZ \
+  -m 0 \
+  -c B \
+  -r 12.0 \
+  -q
 
-# Example 2: Separate files for each ligand and pocket:
-extract_ligand_and_pocket input.pdb -l ligands/ -p pockets/ --ligands ATP NAD --multi --radius 10.0 --exclude HOH
+# Example 2: Extract RLZ and HIC ligands and their pockets, save separately
+extract_ligand_and_pocket 7AHN.pdb \
+  -ol 7AHN_ligands/ \
+  -op 7AHN_pockets/ \
+  --ligand_names RLZ HIC \
+  --multi \
+  -r 10.0 
 
-# Example 3: Automatic extraction of all non-solvent ligands and pockets:
-extract_ligand_and_pocket input.pdb -l auto_ligands/ -p auto_pockets/ --multi --radius 10.0 --quiet
+# Example 3: Automatically extract all non-solvent ligands and pockets
+extract_ligand_and_pocket 7AHN.pdb \
+  -ol auto_ligands/ \
+  -op auto_pockets/ \
+  --multi \
+  -r 10.0 \
+  -q
 ```
 
-#### Python:
+#### 🐍 Python
+
 ```python
 from pocket_extraction import extract_ligand_and_pocket
 
 extract_ligand_and_pocket(
-    pdb_file="input.pdb",      # or pdb_path for automatic extraction
-    ligand_path="ligand.pdb",  # or a directory (e.g., "ligands/")
-    pocket_path="pocket.pdb",  # or a directory (e.g., "pockets/")
-    ligand_names=["ATP", "NAD"],   # omit or adjust as needed
-    model_id=0,                # optional filtering
-    chain_id="E",              # optional filtering
-    multi_mode=True,           # set to True for separate files
-    radius=12.0,               # adjust the search radius
-    quiet=True,                # suppress output messages
-    exclude=["HOH"]          # exclude specific ligands or chains
+    pdb_file="7AHN",             # or your structural file path
+    output_ligand="ligand.pdb",  # or a directory (e.g., "ligands/")
+    output_pocket="pocket.pdb",  # or a directory (e.g., "pockets/")
+    ligand_names=["RLZ"],        # omit to auto detect
+    model_ids=[0],               # optional filtering
+    chain_ids=["B"],             # optional filtering
+    multi=True,                  # set to True for separate files
+    radius=12.0,                 # adjust the search radius
+    quiet=True,                  # suppress output messages
+    exclude=["HIC"]              # exclude specific ligands or chains
 )
 ```
 

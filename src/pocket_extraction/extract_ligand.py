@@ -1,17 +1,17 @@
-import argparse
 from typing import Optional, List
+from pathlib import Path
 from .data_utils import load_structure, save_structure, process_output_path
 from .selection import LigandSelect, REMOVE_LIGANDS
 from .logger import logger, setup_logger
-from pathlib import Path
+from .arguments import get_ligand_parser
 
 def extract_ligand(
     pdb_file: str,
     output_path: str,
     ligand_names: Optional[List[str]] = None,
-    multi_mode: bool = False,
-    model_id: Optional[int] = None,
-    chain_id: Optional[str] = None,
+    multi: bool = False,
+    model_ids: Optional[List[int]] = None,
+    chain_ids: Optional[List[str]] = None,
     ext: Optional[str] = None,
     quiet: bool = False
 ) -> int:
@@ -22,8 +22,8 @@ def extract_ligand(
         structure = load_structure(pdb_file, quiet)
         selector = LigandSelect(
             ligand_names=ligand_names,
-            model_id=model_id,
-            chain_id=chain_id,
+            model_ids=model_ids,
+            chain_ids=chain_ids,
             quiet=quiet
         )
         
@@ -46,7 +46,7 @@ def extract_ligand(
         
         # Save results
         count = 0
-        if not multi_mode:
+        if not multi:
             out_path = process_output_path(
                 output_path,
                 "ligand" if output_is_dir else Path(output_path).stem,
@@ -58,7 +58,7 @@ def extract_ligand(
             for i, lig in enumerate(ligands, 1):
                 out_path = process_output_path(
                     output_path,
-                    lig.get_resname().strip(),
+                    f"{lig.get_resname()}_{lig.get_parent().id}",
                     ext,
                     i
                 )
@@ -75,39 +75,7 @@ def extract_ligand(
         raise
 
 def main():
-    """CLI for ligand extraction."""
-    parser = argparse.ArgumentParser(
-        description="Extract ligands from structure files",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    # Input/output
-    parser.add_argument("pdb_file", help="Input structure file")
-    parser.add_argument("-o", "--output", default="ligand.pdb",
-                      help="Output path (file/directory)")
-    
-    # Selection criteria
-    parser.add_argument("--ligands", nargs="+",
-                      help="Specific ligand names to extract")
-    parser.add_argument("--exclude", nargs="+",
-                      help="Additional ligands to exclude")
-    parser.add_argument("--model", type=int,
-                      help="Model ID to extract from")
-    parser.add_argument("--chain",
-                      help="Chain ID to extract from")
-    
-    # Modes
-    parser.add_argument("--multi", action="store_true",
-                      help="Save each ligand separately")
-    parser.add_argument("--ext", choices=["pdb", "cif"],
-                      help="Output format override")
-    
-    # Logging
-    parser.add_argument("-q", "--quiet", action="store_true",
-                      help="Suppress informational output")
-    parser.add_argument("--debug", action="store_true",
-                      help="Enable debug logging")
-    parser.add_argument("--logfile",
-                      help="Path to log file")
+    parser = get_ligand_parser()
     
     args = parser.parse_args()
     
@@ -128,10 +96,10 @@ def main():
         count = extract_ligand(
             pdb_file=args.pdb_file,
             output_path=args.output,
-            ligand_names=args.ligands,
-            multi_mode=args.multi,
-            model_id=args.model,
-            chain_id=args.chain,
+            ligand_names=args.ligand_names,
+            multi=args.multi,
+            model_ids=args.model_ids,
+            chain_ids=args.chain_ids,
             ext=args.ext,
             quiet=args.quiet
         )

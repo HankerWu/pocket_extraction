@@ -1,4 +1,3 @@
-import argparse
 import numpy as np
 from typing import Optional
 from pathlib import Path
@@ -6,6 +5,7 @@ from Bio import PDB
 from .data_utils import load_structure, save_structure, process_output_path
 from .selection import PocketSelect
 from .logger import logger, setup_logger
+from .arguments import get_pocket_parser
 
 def get_ligand_coords(ligand_file: str, quiet: bool = False) -> np.ndarray:
     """Extract coordinates from ligand structure file."""
@@ -56,34 +56,7 @@ def extract_pocket(
         raise
 
 def main():
-    """CLI for pocket extraction."""
-    parser = argparse.ArgumentParser(
-        description="Extract binding pockets from structures",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    # Input/output
-    parser.add_argument("pdb_file", help="Input structure file")
-    parser.add_argument("-o", "--output", default="pocket.pdb",
-                      help="Output path (file/directory)")
-    
-    # Ligand specification
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--ligand_file", help="Ligand structure file")
-    group.add_argument("--ligand_center", nargs=3, type=float,
-                     help="Manual ligand center coordinates (X Y Z)")
-    
-    # Parameters
-    parser.add_argument("-r", "--radius", type=float, default=10.0,
-                      help="Pocket radius in Angstroms")
-    parser.add_argument("--ext", choices=["pdb", "cif"],
-                      help="Output format override")
-    
-    # Logging
-    parser.add_argument("-q", "--quiet", action="store_true",
-                      help="Suppress informational output")
-    parser.add_argument("--debug", action="store_true",
-                      help="Enable debug logging")
-    parser.add_argument("--logfile", help="Path to log file")
+    parser = get_pocket_parser()
     
     args = parser.parse_args()
     

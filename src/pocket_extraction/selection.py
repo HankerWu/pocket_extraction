@@ -100,8 +100,8 @@ class LigandSelect(Select):
     def __init__(
         self,
         ligand_names: Optional[List[str]] = None,
-        model_id: Optional[int] = None,
-        chain_id: Optional[str] = None,
+        model_ids: Optional[List[int]] = None,
+        chain_ids: Optional[List[str]] = None,
         quiet: bool = False
     ):
         """Initialize ligand selector.
@@ -113,8 +113,8 @@ class LigandSelect(Select):
             quiet: Suppress warnings
         """
         self.ligand_names = None if ligand_names is None else set(ligand_names)
-        self.model_id = model_id
-        self.chain_id = chain_id
+        self.model_ids = model_ids
+        self.chain_ids = chain_ids
         self.quiet = quiet
         
         if self.ligand_names:
@@ -123,14 +123,14 @@ class LigandSelect(Select):
                 logger.warning(f"Excluded ligands in request: {invalid}")
 
     def accept_model(self, model):
-        if self.model_id is None:
+        if self.model_ids is None:
             return True
-        return True if model.id == self.model_id else False
+        return True if model.id in self.model_ids else False
 
     def accept_chain(self, chain):
-        if self.chain_id is None:
+        if self.chain_ids is None:
             return True
-        return True if chain.id == self.chain_id else False
+        return True if chain.id in self.chain_ids else False
     
     def accept_residue(self, residue):
         resname = residue.get_resname().strip()
