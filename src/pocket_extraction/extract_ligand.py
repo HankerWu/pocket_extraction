@@ -13,7 +13,8 @@ def extract_ligand(
     model_ids: Optional[List[int]] = None,
     chain_ids: Optional[List[str]] = None,
     ext: Optional[str] = None,
-    quiet: bool = False
+    quiet: bool = False,
+    ignore_duplicates: bool = True
 ) -> int:
     """Extract ligands from structure with flexible filtering."""
     output_is_dir = output_path.endswith(("/", "\\")) or len(Path(output_path).suffix) <= 1
@@ -38,6 +39,16 @@ def extract_ligand(
                 for res in chain.get_unpacked_list():
                     if selector.accept_residue(res):
                         ligands.append(res)
+        
+        if ignore_duplicates:
+            seen = set()
+            unique_ligands = []
+            for lig in ligands:
+                resname = lig.get_resname().strip()
+                if resname not in seen:
+                    seen.add(resname)
+                    unique_ligands.append(lig)
+            ligands = unique_ligands
         
         if not ligands:
             if not quiet:
@@ -101,7 +112,8 @@ def main():
             model_ids=args.model_ids,
             chain_ids=args.chain_ids,
             ext=args.ext,
-            quiet=args.quiet
+            quiet=args.quiet,
+            ignore_duplicates=args.ignore_duplicates
         )
         
         if not args.quiet:

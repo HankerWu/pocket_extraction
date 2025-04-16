@@ -113,6 +113,8 @@ def add_ligand_selection_arguments(parser: argparse.ArgumentParser) -> None:
                       help="Chain IDs to extract from")
     parser.add_argument("--multi", action="store_true",
                       help="Save separate files per ligand")
+    parser.add_argument("--ignore_duplicates", type=bool, default=True,
+                      help="Whether to ignore duplicate ligands in the same file")
 
 def add_pocket_arguments(parser: argparse.ArgumentParser) -> None:
     """Add arguments for pocket extraction."""

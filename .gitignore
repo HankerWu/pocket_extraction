@@ -12,3 +12,4 @@ build/
 *.pyc
 *.pyo
 *.pyd
+build_and_upload.sh

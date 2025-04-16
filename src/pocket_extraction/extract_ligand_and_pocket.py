@@ -16,7 +16,8 @@ def extract_ligand_and_pocket(
     multi: bool = False,
     radius: float = 10.0,
     ext: Optional[str] = None,
-    quiet: bool = False
+    quiet: bool = False,
+    ignore_duplicates: bool = True
 ) -> int:
     """Simultaneous extraction of ligands and binding pockets."""
     try:
@@ -38,6 +39,16 @@ def extract_ligand_and_pocket(
                     continue
                 ligands.extend(res for res in chain.get_unpacked_list() 
                              if ligand_selector.accept_residue(res))
+        
+        if ignore_duplicates:
+            seen = set()
+            unique_ligands = []
+            for lig in ligands:
+                resname = lig.get_resname().strip()
+                if resname not in seen:
+                    seen.add(resname)
+                    unique_ligands.append(lig)
+            ligands = unique_ligands
         
         if not ligands:
             if not quiet:
@@ -124,7 +135,8 @@ def main():
             multi=args.multi,
             radius=args.radius,
             ext=args.ext,
-            quiet=args.quiet
+            quiet=args.quiet,
+            ignore_duplicates=args.ignore_duplicates
         )
         
         if not args.quiet:
