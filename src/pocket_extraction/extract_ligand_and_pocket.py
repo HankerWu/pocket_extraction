@@ -60,7 +60,7 @@ def extract_ligand_and_pocket(
         if not multi or len(ligands) == 1:
             # Combined output
             lig_file = process_output_path(output_ligand, "ligand", ext)
-            save_structure(lig_file, structure, ligand_selector, quiet)
+            save_structure(lig_file, ligands[0], quiet=quiet)
             
             # Combined pocket
             all_coords = np.concatenate([np.array([atom.coord for atom in lig.get_atoms()]) 

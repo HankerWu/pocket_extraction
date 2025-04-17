@@ -46,7 +46,7 @@ pip install pocket_extraction
 | `-q/--quiet` | Suppress informational output | No | `False` | Flag |
 | `--debug` | Enable debug logging | No | `False` | Flag |
 | `--logfile` | Path to save log file | No | None | Path |
-
+| `--ignore_duplicates` | Whether to ignore duplicate ligands | No | `True` | Str2Bool |
 ---
 
 ### `extract_ligand` (Ligand Extraction)

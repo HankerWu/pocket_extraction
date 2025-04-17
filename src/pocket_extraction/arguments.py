@@ -84,6 +84,14 @@ def remove_arguments(parser: argparse.ArgumentParser,
 
     # Force help system reset
     parser._get_formatter = lambda: parser.formatter_class(prog=parser.prog)
+    
+def str_to_bool(value):
+    if value.lower() in {"true", "t", "yes", "y", "1", "True", "T", "Yes", "Y", "1"}:
+        return True
+    elif value.lower() in {"false", "f", "no", "n", "0", "False", "F", "No", "N", "0"}:
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
 
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     """Add arguments common to all scripts."""
@@ -113,7 +121,7 @@ def add_ligand_selection_arguments(parser: argparse.ArgumentParser) -> None:
                       help="Chain IDs to extract from")
     parser.add_argument("--multi", action="store_true",
                       help="Save separate files per ligand")
-    parser.add_argument("--ignore_duplicates", type=bool, default=True,
+    parser.add_argument("--ignore_duplicates", type=str_to_bool, default=True,
                       help="Whether to ignore duplicate ligands in the same file")
 
 def add_pocket_arguments(parser: argparse.ArgumentParser) -> None:

@@ -63,7 +63,7 @@ def extract_ligand(
                 "ligand" if output_is_dir else Path(output_path).stem,
                 ext
             )
-            save_structure(out_path, structure, selector, quiet)
+            save_structure(out_path, ligands[0], quiet=quiet)
             count = len(ligands)
         else:
             for i, lig in enumerate(ligands):
