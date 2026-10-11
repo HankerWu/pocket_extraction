@@ -2,6 +2,8 @@ import numpy as np
 import os
 import requests
 import tempfile
+import stat
+from uuid import uuid4
 from Bio import PDB
 from Bio.PDB import Select
 from Bio.PDB.Structure import Structure
@@ -16,13 +18,6 @@ RESIDUE_MAP = {
     "LEU": "L", "LYS": "K", "MET": "M", "PHE": "F", "PRO": "P",
     "SER": "S", "THR": "T", "TRP": "W", "TYR": "Y", "VAL": "V",
     "MSE": "M", "UNK": "X"
-}
-
-AA_RADII = {
-    "A": 1.5, "C": 1.7, "D": 2.0, "E": 2.2, "F": 2.8, "G": 1.0,
-    "H": 2.5, "I": 2.2, "K": 2.8, "L": 2.2, "M": 2.3, "N": 2.0,
-    "P": 1.9, "Q": 2.2, "R": 3.0, "S": 1.6, "T": 1.9, "V": 2.0,
-    "W": 2.8, "Y": 2.5
 }
 
 def fetch_pdb(pdb_id: str, output_dir: Optional[str] = None, ext: str = 'pdb', quiet: bool = False, retry: int = 3) -> str:
@@ -163,24 +158,31 @@ def save_structure(
     if suffix not in (".pdb", ".cif"):
         raise ValueError(f"Unsupported format '{suffix}'. Use .pdb or .cif")
     
+    temporary = None
     try:
         io = PDB.MMCIFIO() if suffix == ".cif" else PDB.PDBIO()
         io.set_structure(structure)
         
         path.parent.mkdir(parents=True, exist_ok=True)
-        io.save(str(path), select=select)
+        temporary = path.with_name(f".{path.stem}.{uuid4().hex}{suffix}")
+        # Exclusive creation retains ordinary output umask semantics.
+        with temporary.open("x"):
+            pass
+        if path.exists():
+            temporary.chmod(stat.S_IMODE(path.stat().st_mode))
+        io.save(str(temporary), select=select)
+        temporary.replace(path)
         
         if not quiet:
             logger.info(f"Saved structure to {path}")
             
     except Exception as e:
-        if path.exists():
-            try:
-                path.unlink()
-                logger.warning(f"Removed corrupted output: {path}")
-            except Exception as cleanup_err:
-                logger.error(f"Cleanup failed: {cleanup_err}")
-        
         logger.exception("Save operation failed")
         raise
-    
+    finally:
+        if temporary is not None and temporary.exists():
+            try:
+                temporary.unlink()
+            except OSError as cleanup_err:
+                logger.error(f"Temporary output cleanup failed: {cleanup_err}")
+

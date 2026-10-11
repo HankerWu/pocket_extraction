@@ -2,10 +2,17 @@ from Bio.PDB import Select
 import numpy as np
 from typing import Optional, List, Dict
 from .logger import logger
-from .data_utils import RESIDUE_MAP, AA_RADII, get_remove_ligands
+from .data_utils import RESIDUE_MAP, get_remove_ligands
 
-# Global exclusion set
-REMOVE_LIGANDS = get_remove_ligands()
+# Immutable default exclusions; additional exclusions belong to each selector.
+REMOVE_LIGANDS = frozenset(get_remove_ligands())
+
+def validate_radius(radius):
+    """Use the same finite, positive distance contract for both pocket APIs."""
+    radius = float(radius)
+    if not np.isfinite(radius) or radius <= 0:
+        raise ValueError("Radius must be finite and positive")
+    return radius
 
 class PocketSelect(Select):
     """Advanced binding pocket selection based on spatial criteria."""
@@ -28,54 +35,28 @@ class PocketSelect(Select):
         if (ligand_coords is None) == (ligand_center is None):
             raise ValueError("Provide exactly one of ligand_coords or ligand_center")
             
-        self.radius = float(radius)
+        self.radius = validate_radius(radius)
         self.quiet = quiet
         
         if ligand_coords is not None:
             self.ligand_coords = np.asarray(ligand_coords, dtype=np.float32)
-            self.ligand_center = np.mean(self.ligand_coords, axis=0)
-            self.ligand_radius = np.max(np.linalg.norm(
-                self.ligand_coords - self.ligand_center, 
-                axis=1
-            ))
+            if (self.ligand_coords.ndim != 2 or self.ligand_coords.shape[1] != 3
+                    or not len(self.ligand_coords) or not np.isfinite(self.ligand_coords).all()):
+                raise ValueError("Ligand coordinates must be a nonempty finite Nx3 array")
         else:
             self.ligand_center = np.asarray(ligand_center, dtype=np.float32)
-            self.ligand_radius = 0.0
-            
-        self.extended_radius = self.radius + self.ligand_radius
+            if self.ligand_center.shape != (3,) or not np.isfinite(self.ligand_center).all():
+                raise ValueError("Ligand center must contain three finite coordinates")
 
     def accept_residue(self, residue):
-        """Two-stage residue selection for optimal performance."""
+        """Select residues by their actual atom distances, including long side chains."""
         resname = residue.get_resname().strip()
         one_letter = RESIDUE_MAP.get(resname)
         if one_letter is None:
             return False
             
-        # Stage 1: Fast bounding sphere check
-        res_center = self._get_residue_center(residue)
-        if res_center is None:
-            return False
-            
-        res_radius = AA_RADII.get(one_letter, 2.0)
-        dist = np.linalg.norm(res_center - self.ligand_center)
-        
-        if dist > 1.5 * (self.extended_radius + res_radius):
-            return False
-            
-        # Stage 2: Precise atom-level check
         return (self._check_ligand_coords(residue) if hasattr(self, 'ligand_coords') 
                 else self._check_ligand_center(residue))
-
-    def _get_residue_center(self, residue):
-        """Get approximate residue center coordinates."""
-        try:
-            return residue["CA"].coord
-        except KeyError:
-            try:
-                return next(atom.coord for atom in residue.get_atoms())
-            except StopIteration:
-                logger.debug(f"No coordinates for {residue.get_resname()}")
-                return None
 
     def _check_ligand_center(self, residue):
         """Check against ligand centroid."""
@@ -103,7 +84,8 @@ class LigandSelect(Select):
         model_ids: Optional[List[int]] = None,
         chain_ids: Optional[List[str]] = None,
         quiet: bool = False,
-        selected_residues=None
+        selected_residues=None,
+        exclude: Optional[List[str]] = None
     ):
         """Initialize ligand selector.
         
@@ -117,6 +99,7 @@ class LigandSelect(Select):
         self.model_ids = model_ids
         self.chain_ids = chain_ids
         self.quiet = quiet
+        self.exclude = set(exclude or ())
         self.selected_residues = (None if selected_residues is None
                                   else {id(residue) for residue in selected_residues})
         
@@ -139,6 +122,8 @@ class LigandSelect(Select):
         if self.selected_residues is not None:
             return id(residue) in self.selected_residues
         resname = residue.get_resname().strip()
+        if resname in self.exclude:
+            return False
         
         if self.ligand_names is not None:
             return resname in self.ligand_names

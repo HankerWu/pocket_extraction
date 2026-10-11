@@ -35,20 +35,12 @@ def extract_pocket(
     quiet: bool = False
 ) -> str:
     """Extract pocket around specified ligand coordinates."""
-    if radius <= 0:
-        raise ValueError("Radius must be positive")
-    
+    selector = PocketSelect(radius=radius, ligand_coords=ligand_coords,
+                            ligand_center=ligand_center, quiet=quiet)
     output_path = process_output_path(output_path, "pocket", ext)
     
     try:
         structure = load_structure(pdb_file, quiet)
-        selector = PocketSelect(
-            radius=radius,
-            ligand_coords=ligand_coords,
-            ligand_center=ligand_center,
-            quiet=quiet
-        )
-        
         save_structure(output_path, structure, selector, quiet)
         return output_path
     except Exception as e:
@@ -93,4 +85,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
+

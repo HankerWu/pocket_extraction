@@ -1,7 +1,7 @@
 from typing import Optional, List
 from pathlib import Path
 from .data_utils import load_structure, save_structure, process_output_path
-from .selection import LigandSelect, REMOVE_LIGANDS, collect_ligands
+from .selection import LigandSelect, collect_ligands
 from .logger import logger, setup_logger
 from .arguments import get_ligand_parser
 
@@ -14,7 +14,8 @@ def extract_ligand(
     chain_ids: Optional[List[str]] = None,
     ext: Optional[str] = None,
     quiet: bool = False,
-    ignore_duplicates: bool = True
+    ignore_duplicates: bool = True,
+    exclude: Optional[List[str]] = None
 ) -> int:
     """Extract ligands from structure with flexible filtering."""
     output_is_dir = output_path.endswith(("/", "\\")) or len(Path(output_path).suffix) <= 1
@@ -25,7 +26,8 @@ def extract_ligand(
             ligand_names=ligand_names,
             model_ids=model_ids,
             chain_ids=chain_ids,
-            quiet=quiet
+            quiet=quiet,
+            exclude=exclude
         )
         
         ligands = collect_ligands(structure, selector, ignore_duplicates)
@@ -81,8 +83,6 @@ def main():
         
         if args.exclude:
             logger.warning(f"Excluding ligands: {args.exclude}")
-            for ligand in args.exclude:
-                REMOVE_LIGANDS.add(ligand)
         
         # Perform extraction
         count = extract_ligand(
@@ -94,7 +94,8 @@ def main():
             chain_ids=args.chain_ids,
             ext=args.ext,
             quiet=args.quiet,
-            ignore_duplicates=args.ignore_duplicates
+            ignore_duplicates=args.ignore_duplicates,
+            exclude=args.exclude
         )
         
         if not args.quiet:
@@ -106,4 +107,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
+

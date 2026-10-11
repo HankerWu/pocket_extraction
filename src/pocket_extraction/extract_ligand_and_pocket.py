@@ -2,7 +2,7 @@ import numpy as np
 from typing import Optional, List
 from pathlib import Path
 from .data_utils import load_structure, save_structure, process_output_path
-from .selection import LigandSelect, PocketSelect, REMOVE_LIGANDS, collect_ligands
+from .selection import LigandSelect, PocketSelect, collect_ligands, validate_radius
 from .logger import logger, setup_logger
 from .arguments import get_ligand_and_pocket_parser
 
@@ -17,16 +17,19 @@ def extract_ligand_and_pocket(
     radius: float = 10.0,
     ext: Optional[str] = None,
     quiet: bool = False,
-    ignore_duplicates: bool = True
+    ignore_duplicates: bool = True,
+    exclude: Optional[List[str]] = None
 ) -> int:
     """Simultaneous extraction of ligands and binding pockets."""
+    radius = validate_radius(radius)
     try:
         structure = load_structure(pdb_file, quiet)
         ligand_selector = LigandSelect(
             ligand_names=ligand_names,
             model_ids=model_ids,
             chain_ids=chain_ids,
-            quiet=quiet
+            quiet=quiet,
+            exclude=exclude
         )
         
         ligands = collect_ligands(structure, ligand_selector, ignore_duplicates)
@@ -36,51 +39,37 @@ def extract_ligand_and_pocket(
                 logger.warning(f"No matching ligands found for {pdb_file}.")
             return 0
         
-        # Process based on mode
-        count = 0
-        if not multi or len(ligands) == 1:
-            # Combined output
-            lig_file = process_output_path(output_ligand, "ligand", ext)
-            save_structure(lig_file, structure,
-                           LigandSelect(selected_residues=ligands, quiet=quiet), quiet)
-            
-            # Combined pocket
-            all_coords = np.concatenate([np.array([atom.coord for atom in lig.get_atoms()]) 
-                                       for lig in ligands])
-            pocket_selector = PocketSelect(
-                radius=radius,
-                ligand_coords=all_coords,
-                quiet=quiet
-            )
-            pocket_file = process_output_path(output_pocket, "pocket", ext)
+        # Validate every geometry and output path before publishing the first file.
+        combined = not multi or len(ligands) == 1
+        groups = [ligands] if combined else [[ligand] for ligand in ligands]
+        outputs = []
+        for index, group in enumerate(groups):
+            coords = np.concatenate([np.array([atom.coord for atom in ligand.get_atoms()])
+                                     for ligand in group])
+            pocket_selector = PocketSelect(radius=radius, ligand_coords=coords, quiet=quiet)
+            if combined:
+                ligand_file = process_output_path(output_ligand, "ligand", ext)
+                pocket_file = process_output_path(output_pocket, "pocket", ext)
+                ligand_source = structure
+                selection = LigandSelect(selected_residues=group, quiet=quiet)
+            else:
+                ligand = group[0]
+                name = f"{ligand.get_resname()}_{ligand.get_parent().id}"
+                ligand_file = process_output_path(output_ligand, name, ext, index)
+                pocket_file = process_output_path(output_pocket, f"{name}_pocket", ext, index)
+                ligand_source, selection = ligand, None
+            outputs.append((ligand_file, pocket_file, ligand_source, selection, pocket_selector))
+        paths = [Path(path).resolve() for output in outputs for path in output[:2]]
+        if len(set(paths)) != len(paths):
+            raise ValueError("Ligand and pocket outputs must use distinct file paths")
+        for ligand_file, pocket_file, ligand_source, selection, pocket_selector in outputs:
+            if selection is None:
+                save_structure(ligand_file, ligand_source, quiet=quiet)
+            else:
+                save_structure(ligand_file, ligand_source, selection, quiet)
             save_structure(pocket_file, structure, pocket_selector, quiet)
-            
-            count = len(ligands)
-        else:
-            # Per-ligand output
-            for idx, lig in enumerate(ligands):
-                # Save ligand
-                lig_name = f"{lig.get_resname()}_{lig.get_parent().id}"
-                lig_file = process_output_path(output_ligand, lig_name, ext, idx)
-                save_structure(lig_file, lig, quiet=quiet)
-                
-                # Save pocket
-                coords = np.array([atom.coord for atom in lig.get_atoms()])
-                pocket_selector = PocketSelect(
-                    radius=radius,
-                    ligand_coords=coords,
-                    quiet=quiet
-                )
-                pocket_file = process_output_path(
-                    output_pocket,
-                    f"{lig_name}_pocket",
-                    ext,
-                    idx
-                )
-                save_structure(pocket_file, structure, pocket_selector, quiet)
-                
-                count += 1
-        
+        count = len(ligands)
+
         if not quiet:
             logger.info(f"Processed {count} ligand-pocket pairs from {pdb_file}.")
         return count
@@ -103,8 +92,6 @@ def main():
         
         if args.exclude:
             logger.info(f"Excluding ligands: {args.exclude}")
-            for ligand in args.exclude:
-                REMOVE_LIGANDS.add(ligand)
         
         # Perform extraction
         count = extract_ligand_and_pocket(
@@ -118,7 +105,8 @@ def main():
             radius=args.radius,
             ext=args.ext,
             quiet=args.quiet,
-            ignore_duplicates=args.ignore_duplicates
+            ignore_duplicates=args.ignore_duplicates,
+            exclude=args.exclude
         )
         
         if not args.quiet:
@@ -130,4 +118,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
+

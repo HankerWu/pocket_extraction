@@ -19,7 +19,8 @@ classifiers = [
 dependencies = [
     "biopython",
     "rdkit",
-    "numpy"
+    "numpy",
+    "requests"
 ]
 
 [project.urls]
@@ -35,4 +36,3 @@ include-package-data = true
 extract_pocket = "pocket_extraction.extract_pocket:main"
 extract_ligand = "pocket_extraction.extract_ligand:main"
 extract_ligand_and_pocket = "pocket_extraction.extract_ligand_and_pocket:main"
-
