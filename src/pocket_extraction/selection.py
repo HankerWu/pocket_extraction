@@ -102,7 +102,8 @@ class LigandSelect(Select):
         ligand_names: Optional[List[str]] = None,
         model_ids: Optional[List[int]] = None,
         chain_ids: Optional[List[str]] = None,
-        quiet: bool = False
+        quiet: bool = False,
+        selected_residues=None
     ):
         """Initialize ligand selector.
         
@@ -116,6 +117,8 @@ class LigandSelect(Select):
         self.model_ids = model_ids
         self.chain_ids = chain_ids
         self.quiet = quiet
+        self.selected_residues = (None if selected_residues is None
+                                  else {id(residue) for residue in selected_residues})
         
         if self.ligand_names:
             invalid = self.ligand_names & REMOVE_LIGANDS
@@ -133,6 +136,8 @@ class LigandSelect(Select):
         return True if chain.id in self.chain_ids else False
     
     def accept_residue(self, residue):
+        if self.selected_residues is not None:
+            return id(residue) in self.selected_residues
         resname = residue.get_resname().strip()
         
         if self.ligand_names is not None:
@@ -142,4 +147,23 @@ class LigandSelect(Select):
             return False
             
         return resname not in REMOVE_LIGANDS
-    
+
+def collect_ligands(structure, selector, ignore_duplicates=True):
+    """Collect filtered residues once; optionally keep the first of each name."""
+    ligands = []
+    seen = set()
+    for model in structure:
+        if not selector.accept_model(model):
+            continue
+        for chain in model:
+            if not selector.accept_chain(chain):
+                continue
+            for residue in chain.get_unpacked_list():
+                if not selector.accept_residue(residue):
+                    continue
+                name = residue.get_resname().strip()
+                if ignore_duplicates and name in seen:
+                    continue
+                seen.add(name)
+                ligands.append(residue)
+    return ligands

@@ -2,7 +2,7 @@ import numpy as np
 from typing import Optional, List
 from pathlib import Path
 from .data_utils import load_structure, save_structure, process_output_path
-from .selection import LigandSelect, PocketSelect, REMOVE_LIGANDS
+from .selection import LigandSelect, PocketSelect, REMOVE_LIGANDS, collect_ligands
 from .logger import logger, setup_logger
 from .arguments import get_ligand_and_pocket_parser
 
@@ -29,27 +29,8 @@ def extract_ligand_and_pocket(
             quiet=quiet
         )
         
-        # Find matching ligands
-        ligands = []
-        for model in structure:
-            if not ligand_selector.accept_model(model):
-                continue
-            for chain in model:
-                if not ligand_selector.accept_chain(chain):
-                    continue
-                ligands.extend(res for res in chain.get_unpacked_list() 
-                             if ligand_selector.accept_residue(res))
-        
-        if ignore_duplicates:
-            seen = set()
-            unique_ligands = []
-            for lig in ligands:
-                resname = lig.get_resname().strip()
-                if resname not in seen:
-                    seen.add(resname)
-                    unique_ligands.append(lig)
-            ligands = unique_ligands
-        
+        ligands = collect_ligands(structure, ligand_selector, ignore_duplicates)
+
         if not ligands:
             if not quiet:
                 logger.warning(f"No matching ligands found for {pdb_file}.")
@@ -60,7 +41,8 @@ def extract_ligand_and_pocket(
         if not multi or len(ligands) == 1:
             # Combined output
             lig_file = process_output_path(output_ligand, "ligand", ext)
-            save_structure(lig_file, ligands[0], quiet=quiet)
+            save_structure(lig_file, structure,
+                           LigandSelect(selected_residues=ligands, quiet=quiet), quiet)
             
             # Combined pocket
             all_coords = np.concatenate([np.array([atom.coord for atom in lig.get_atoms()]) 

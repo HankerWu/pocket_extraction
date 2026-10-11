@@ -1,7 +1,7 @@
 from typing import Optional, List
 from pathlib import Path
 from .data_utils import load_structure, save_structure, process_output_path
-from .selection import LigandSelect, REMOVE_LIGANDS
+from .selection import LigandSelect, REMOVE_LIGANDS, collect_ligands
 from .logger import logger, setup_logger
 from .arguments import get_ligand_parser
 
@@ -28,28 +28,8 @@ def extract_ligand(
             quiet=quiet
         )
         
-        # Collect matching ligands
-        ligands = []
-        for model in structure:
-            if not selector.accept_model(model):
-                continue
-            for chain in model:
-                if not selector.accept_chain(chain):
-                    continue
-                for res in chain.get_unpacked_list():
-                    if selector.accept_residue(res):
-                        ligands.append(res)
-        
-        if ignore_duplicates:
-            seen = set()
-            unique_ligands = []
-            for lig in ligands:
-                resname = lig.get_resname().strip()
-                if resname not in seen:
-                    seen.add(resname)
-                    unique_ligands.append(lig)
-            ligands = unique_ligands
-        
+        ligands = collect_ligands(structure, selector, ignore_duplicates)
+
         if not ligands:
             if not quiet:
                 logger.warning(f"No matching ligands found for {pdb_file}.")
@@ -63,7 +43,8 @@ def extract_ligand(
                 "ligand" if output_is_dir else Path(output_path).stem,
                 ext
             )
-            save_structure(out_path, ligands[0], quiet=quiet)
+            save_structure(out_path, structure,
+                           LigandSelect(selected_residues=ligands, quiet=quiet), quiet)
             count = len(ligands)
         else:
             for i, lig in enumerate(ligands):
