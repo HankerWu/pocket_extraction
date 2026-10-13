@@ -58,6 +58,7 @@ def test_combined_output_contains_every_selected_ligand(
         pocket_residues = read_residues(pocket)
         assert all(row[2] == "ALA" for row in pocket_residues)
         assert {row[1] for row in pocket_residues} == {row[1] for row in expected}
+        assert {row[0] for row in pocket_residues} == {row[0] for row in expected}
     else:
         count = extract_ligand(str(structure_file), str(ligand), quiet=True, **options)
     assert count == len(expected)
@@ -97,6 +98,28 @@ def test_multi_output_retains_existing_per_ligand_files(tmp_path, structure_file
         assert [{row[1] for row in read_residues(path)} for path in pockets] == [
             {"A"}, {"B"}, {"A"}, {"B"},
         ]
+        assert [{row[0] for row in read_residues(path)} for path in pockets] == [
+            {1}, {1}, {2}, {2},
+        ]
+
+
+@pytest.mark.parametrize("extension", ["pdb", "cif"])
+def test_combined_pockets_use_only_ligand_coords_in_the_same_model(tmp_path, structure_file, extension):
+    # Swap the two chains' positions in the second model. Comparing every
+    # model against the union of ligand coordinates would select both chains.
+    lines = structure_file.read_text().splitlines(keepends=True)
+    second_model = False
+    for index, line in enumerate(lines):
+        if line.startswith("MODEL"):
+            second_model = int(line[10:14]) == 2
+        elif second_model and line.startswith(("ATOM", "HETATM")):
+            coordinate = float(line[30:38])
+            lines[index] = line[:30] + f"{coordinate + (20 if line[21] == 'A' else -20):8.3f}" + line[38:]
+    structure_file.write_text("".join(lines))
+    ligand, pocket = tmp_path / f"ligand.{extension}", tmp_path / f"pocket.{extension}"
+    extract_ligand_and_pocket(str(structure_file), str(ligand), str(pocket),
+                             ligand_names=["LIG"], ignore_duplicates=False, radius=2, quiet=True)
+    assert [(row[0], row[1]) for row in read_residues(pocket)] == [(1, "A"), (2, "A")]
 
 
 @pytest.mark.parametrize("paired", [False, True])

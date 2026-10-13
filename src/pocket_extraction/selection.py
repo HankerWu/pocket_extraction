@@ -75,6 +75,27 @@ class PocketSelect(Select):
                 return True
         return False
 
+class LigandPocketSelect(Select):
+    """Select pocket residues against ligands from their own structure model."""
+
+    def __init__(self, ligands, radius, quiet=False):
+        coordinates = {}
+        for ligand in ligands:
+            model_id = ligand.get_parent().get_parent().id
+            coordinates.setdefault(model_id, []).extend(atom.coord for atom in ligand.get_atoms())
+        self.selectors = {
+            model_id: PocketSelect(radius, ligand_coords=np.asarray(points), quiet=quiet)
+            for model_id, points in coordinates.items()
+        }
+
+    def accept_model(self, model):
+        return model.id in self.selectors
+
+    def accept_residue(self, residue):
+        selector = self.selectors.get(residue.get_parent().get_parent().id)
+        return selector is not None and selector.accept_residue(residue)
+
+
 class LigandSelect(Select):
     """Precise ligand selection with filtering options."""
     

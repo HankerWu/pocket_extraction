@@ -1,8 +1,7 @@
-import numpy as np
 from typing import Optional, List
 from pathlib import Path
 from .data_utils import load_structure, save_structure, process_output_path
-from .selection import LigandSelect, PocketSelect, collect_ligands, validate_radius
+from .selection import LigandSelect, LigandPocketSelect, collect_ligands, validate_radius
 from .logger import logger, setup_logger
 from .arguments import get_ligand_and_pocket_parser
 
@@ -44,9 +43,7 @@ def extract_ligand_and_pocket(
         groups = [ligands] if combined else [[ligand] for ligand in ligands]
         outputs = []
         for index, group in enumerate(groups):
-            coords = np.concatenate([np.array([atom.coord for atom in ligand.get_atoms()])
-                                     for ligand in group])
-            pocket_selector = PocketSelect(radius=radius, ligand_coords=coords, quiet=quiet)
+            pocket_selector = LigandPocketSelect(group, radius=radius, quiet=quiet)
             if combined:
                 ligand_file = process_output_path(output_ligand, "ligand", ext)
                 pocket_file = process_output_path(output_pocket, "pocket", ext)
@@ -118,4 +115,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

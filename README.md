@@ -138,6 +138,12 @@ extract_ligand("7AHN", "7AHN_ligands/", ligand_names=["RLZ", "HIC"], multi=True)
 
 ### 🔗 3. **Extracting Both Ligands and Binding Pockets**
 
+Each pocket uses ligand coordinates from the same structure model. Model filters
+and duplicate-ligand selection also restrict which models contribute pocket
+residues. Combined output keeps the selected models together; `--multi` writes
+each ligand's own-model pocket. Pocket selection may include nearby residues
+from other chains in that model, preserving protein interface pockets.
+
 #### 🔧 Command-Line
 
 ```bash
