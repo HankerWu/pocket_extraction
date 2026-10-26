@@ -49,13 +49,18 @@ def extract_ligand(
                            LigandSelect(selected_residues=ligands, quiet=quiet), quiet)
             count = len(ligands)
         else:
-            for i, lig in enumerate(ligands):
-                out_path = process_output_path(
+            outputs = [
+                process_output_path(
                     output_path,
                     f"{lig.get_resname()}_{lig.get_parent().id}",
                     ext,
                     i
                 )
+                for i, lig in enumerate(ligands)
+            ]
+            if len({Path(path).resolve() for path in outputs}) != len(outputs):
+                raise ValueError("Ligand outputs must use distinct file paths")
+            for i, (lig, out_path) in enumerate(zip(ligands, outputs)):
                 logger.debug(f"Saving ligand {i}: {out_path}, {lig.get_resname()}, {lig}")
                 save_structure(out_path, lig, quiet=quiet)
                 count += 1

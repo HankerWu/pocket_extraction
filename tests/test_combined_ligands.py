@@ -248,3 +248,46 @@ def test_pocket_uses_nearest_atom_instead_of_average_residue_size(tmp_path, geom
     output = tmp_path / "pocket.pdb"
     extract_pocket(str(structure), str(output), radius=1, quiet=True, **geometry)
     assert [row[2] for row in read_residues(output)] == ["ARG"]
+
+
+@pytest.mark.parametrize("entrypoint", ["api", "cli"])
+@pytest.mark.parametrize("existing", [False, True])
+def test_multi_ligand_filename_collision_preserves_outputs(
+    tmp_path, structure_file, entrypoint, existing,
+):
+    import os
+    import subprocess
+    import sys
+    from pocket_extraction.data_utils import load_structure, save_structure
+
+    structure = load_structure(str(structure_file), quiet=True)
+    structure.detach_child(1)
+    model = structure[0]
+    model["A"].id = "A_1"
+    model["B"].id = "A"
+    for residue in model.get_residues():
+        if residue.id[0].startswith("H_"):
+            residue.resname = "LIG"
+    source = tmp_path / "multi-character-chains.cif"
+    save_structure(source, structure, quiet=True)
+    source_bytes = source.read_bytes()
+    output = tmp_path / "ligands"
+    output.mkdir()
+    collision = output / "LIG_A_1.cif"
+    if existing:
+        collision.write_text("previous completed ligand")
+    before = {path.name: path.read_bytes() for path in output.iterdir()}
+    if entrypoint == "api":
+        with pytest.raises(ValueError, match="distinct file paths"):
+            extract_ligand(str(source), str(output), multi=True, ignore_duplicates=False,
+                           ext="cif", quiet=True)
+    else:
+        environment = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")}
+        result = subprocess.run(
+            [sys.executable, "-m", "pocket_extraction.extract_ligand", str(source),
+             "--output", str(output), "--multi", "--ignore_duplicates", "false", "--ext", "cif", "--quiet"],
+            env=environment, capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode != 0 and "distinct file paths" in result.stderr
+    assert {path.name: path.read_bytes() for path in output.iterdir()} == before
+    assert source.read_bytes() == source_bytes

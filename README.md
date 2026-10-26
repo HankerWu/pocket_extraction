@@ -234,6 +234,11 @@ the first file is written, including multi mode. A protein residue is included
 when any of its atoms is within the requested radius; approximate average amino
 acid sizes cannot exclude a qualifying side chain.
 
+Standalone `extract_ligand --multi` also plans every filename before writing.
+If residue/chain names and the existing index suffixes produce a collision, it
+raises an error and preserves all existing output files. Per-ligand filenames
+remain unchanged for non-colliding inputs.
+
 `save_structure` writes a same-directory temporary PDB/mmCIF and replaces the
 requested file only after successful serialization, retaining an existing file's
 permission mode and the normal creation umask for new files. A failed writer
