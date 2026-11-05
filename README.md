@@ -253,3 +253,13 @@ extraction requires exactly one reference file or center; combined extraction
 uses the selected ligand coordinates and has no reference or generic output
 argument. The existing `requests` download client is declared as a dependency;
 offline local-file extraction needs no network request.
+
+PDB-ID inputs use `data_utils.fetch_pdb`, with at most three network attempts
+and a 30-second connect/read inactivity timeout per attempt. Python callers can
+set positive `retry` (total attempts) and `timeout` values; these are not a total
+wall-clock deadline. Downloads replace the destination only after the full
+response has been written to a same-directory temporary file, preserving an
+existing file's permission mode. Network or publication failures preserve the
+previous file; failed network attempts release the response and filesystem
+failures are surfaced without retrying the download. Local-file extraction and
+the historical frozen PDB/mmCIF inputs are unchanged.

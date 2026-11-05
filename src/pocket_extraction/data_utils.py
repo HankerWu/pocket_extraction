@@ -20,7 +20,7 @@ RESIDUE_MAP = {
     "MSE": "M", "UNK": "X"
 }
 
-def fetch_pdb(pdb_id: str, output_dir: Optional[str] = None, ext: str = 'pdb', quiet: bool = False, retry: int = 3) -> str:
+def fetch_pdb(pdb_id: str, output_dir: Optional[str] = None, ext: str = 'pdb', quiet: bool = False, retry: int = 3, timeout: float = 30.0) -> str:
     """Fetch PDB file from RCSB database.
     
     Args:
@@ -28,28 +28,40 @@ def fetch_pdb(pdb_id: str, output_dir: Optional[str] = None, ext: str = 'pdb', q
         output_dir: Directory to save the file. Default is a temporary directory.
         ext: File extension (pdb or cif). Default is 'pdb'.
         quiet: Suppress output messages.
-        retry: Number of retries on failure.
+        retry: Positive maximum number of network attempts, including the first.
+        timeout: Positive connect/read inactivity timeout in seconds per attempt.
     Returns:
         Path to the downloaded file.
     """    
     if ext not in ('pdb', 'cif'):
         raise ValueError("Extension must be 'pdb' or 'cif'")
+    if type(retry) is not int or retry < 1:
+        raise ValueError("retry must be a positive integer attempt count")
+    timeout = float(timeout)
+    if not np.isfinite(timeout) or timeout <= 0:
+        raise ValueError("timeout must be finite and positive")
     
     url = f"https://files.rcsb.org/download/{pdb_id}.{ext}"
     if output_dir is None:
         output_dir = tempfile.gettempdir()
     
-    output_path = os.path.join(output_dir, f"{pdb_id}.{ext}")
+    output_path = Path(output_dir) / f"{pdb_id}.{ext}"
     
     for attempt in range(retry):
+        temporary = None
         try:
-            response = requests.get(url)
-            response.raise_for_status()
-            with open(output_path, 'wb') as f:
-                f.write(response.content)
+            with requests.get(url, timeout=timeout) as response:
+                response.raise_for_status()
+                content = response.content
+            temporary = output_path.with_name(f".{output_path.name}.{uuid4().hex}.tmp")
+            with temporary.open('xb') as f:
+                if output_path.exists():
+                    temporary.chmod(stat.S_IMODE(output_path.stat().st_mode))
+                f.write(content)
+            temporary.replace(output_path)
             if not quiet:
                 logger.info(f"Downloaded {url} to {output_path}")
-            return output_path
+            return str(output_path)
         except requests.RequestException as e:
             if attempt < retry - 1:
                 if not quiet:
@@ -57,7 +69,12 @@ def fetch_pdb(pdb_id: str, output_dir: Optional[str] = None, ext: str = 'pdb', q
             else:
                 logger.error(f"Failed to download {url}: {e}")
                 raise
-    return output_path
+        finally:
+            if temporary is not None and temporary.exists():
+                try:
+                    temporary.unlink()
+                except OSError as cleanup_error:
+                    logger.error(f"Temporary download cleanup failed: {cleanup_error}")
 
 def is_valid_pdb_id(pdb_id: str) -> bool:
     """Check if the given string is a valid PDB ID."""
