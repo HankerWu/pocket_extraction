@@ -263,3 +263,7 @@ existing file's permission mode. Network or publication failures preserve the
 previous file; failed network attempts release the response and filesystem
 failures are surfaced without retrying the download. Local-file extraction and
 the historical frozen PDB/mmCIF inputs are unchanged.
+
+The public `fetch_pdb` entry validates the supported four-character ASCII
+alphanumeric PDB identifier before any request or file write. Paths and URL
+fragments raise `ValueError`, keeping downloads within the selected directory.

@@ -4,6 +4,23 @@ import pytest
 from pocket_extraction.data_utils import fetch_pdb
 
 
+@pytest.mark.parametrize("identifier", ["../outside", "/tmp/outside", "1ab/", "1ab?", "１abc", "", None])
+def test_invalid_pdb_id_preserves_files_and_skips_network(tmp_path, monkeypatch, identifier):
+    output = tmp_path / "downloads"
+    output.mkdir()
+    previous = tmp_path / "outside.pdb"
+    previous.write_bytes(b"previous structure")
+
+    def unexpected_request(*args, **kwargs):
+        pytest.fail("invalid identifiers must not reach the network")
+
+    monkeypatch.setattr(requests, "get", unexpected_request)
+    with pytest.raises(ValueError, match="PDB ID"):
+        fetch_pdb(identifier, str(output), quiet=True)
+    assert previous.read_bytes() == b"previous structure"
+    assert not list(output.iterdir())
+
+
 def response(content=b"complete structure"):
     result = requests.Response()
     result.status_code = 200

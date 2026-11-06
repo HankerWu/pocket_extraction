@@ -33,6 +33,8 @@ def fetch_pdb(pdb_id: str, output_dir: Optional[str] = None, ext: str = 'pdb', q
     Returns:
         Path to the downloaded file.
     """    
+    if not is_valid_pdb_id(pdb_id):
+        raise ValueError("PDB ID must contain exactly four ASCII letters or digits")
     if ext not in ('pdb', 'cif'):
         raise ValueError("Extension must be 'pdb' or 'cif'")
     if type(retry) is not int or retry < 1:
@@ -78,7 +80,8 @@ def fetch_pdb(pdb_id: str, output_dir: Optional[str] = None, ext: str = 'pdb', q
 
 def is_valid_pdb_id(pdb_id: str) -> bool:
     """Check if the given string is a valid PDB ID."""
-    return len(pdb_id) == 4 and pdb_id.isalnum()
+    return (isinstance(pdb_id, str) and len(pdb_id) == 4
+            and pdb_id.isascii() and pdb_id.isalnum())
 
 def get_remove_ligands() -> Set[str]:
     """Get set of ligand names to exclude from extraction."""
