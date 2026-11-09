@@ -115,6 +115,8 @@ def process_output_path(output_path: str, base_name: str, ext: Optional[str] = N
     """
     if os.path.isdir(output_path) or output_path.endswith(os.path.sep):
         # Handle directory path case
+        if any(char in base_name for char in '/\\:') or base_name in ('', '.', '..'):
+            raise ValueError("Generated output filename must not contain a path")
         output_dir = output_path
         filename = base_name
     else:

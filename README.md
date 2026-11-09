@@ -32,6 +32,9 @@ Install via pip:
 pip install pocket_extraction
 ```
 
+The package requires Biopython, NumPy and Requests. Extraction does not use
+RDKit and does not install it as a dependency.
+
 ---
 
 
@@ -238,6 +241,11 @@ Standalone `extract_ligand --multi` also plans every filename before writing.
 If residue/chain names and the existing index suffixes produce a collision, it
 raises an error and preserves all existing output files. Per-ligand filenames
 remain unchanged for non-colliding inputs.
+When a destination is a directory, generated filenames containing path separators
+or colons (including Windows drive prefixes) are rejected before publication.
+Structure-provided residue or chain identifiers
+cannot redirect output outside that directory; explicit output file paths retain
+their existing semantics.
 
 `save_structure` writes a same-directory temporary PDB/mmCIF and replaces the
 requested file only after successful serialization, retaining an existing file's

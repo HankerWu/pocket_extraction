@@ -291,3 +291,40 @@ def test_multi_ligand_filename_collision_preserves_outputs(
         assert result.returncode != 0 and "distinct file paths" in result.stderr
     assert {path.name: path.read_bytes() for path in output.iterdir()} == before
     assert source.read_bytes() == source_bytes
+
+
+@pytest.mark.parametrize("paired,identifier", [(False, "chain_path"), (True, "chain_path"),
+                                               (False, "residue_drive")])
+def test_multi_ligand_identifiers_cannot_redirect_output(tmp_path, structure_file, paired, identifier):
+    from pocket_extraction.data_utils import load_structure, save_structure
+
+    structure = load_structure(str(structure_file), quiet=True)
+    structure.detach_child(1)
+    if identifier == "chain_path":
+        structure[0]["B"].id = "../../../escaped"
+    else:
+        import ntpath
+
+        structure[0]["B"][('H_DRG', 2, ' ')].resname = "C:"
+        assert ntpath.splitdrive("C:_B_1.cif")[0] == "C:"
+    source = tmp_path / "path-like-chain.cif"
+    save_structure(source, structure, quiet=True)
+    source_bytes = source.read_bytes()
+    ligand_dir, pocket_dir = tmp_path / "ligands", tmp_path / "pockets"
+    ligand_dir.mkdir()
+    pocket_dir.mkdir()
+    protected = tmp_path / "escaped_1.cif"
+    protected.write_text("previous external output")
+    before = {path.relative_to(tmp_path): path.read_bytes()
+              for path in tmp_path.rglob("*") if path.is_file()}
+
+    with pytest.raises(ValueError, match="filename"):
+        if paired:
+            extract_ligand_and_pocket(str(source), str(ligand_dir), str(pocket_dir),
+                                     multi=True, ext="cif", quiet=True)
+        else:
+            extract_ligand(str(source), str(ligand_dir), multi=True, ext="cif", quiet=True)
+
+    assert {path.relative_to(tmp_path): path.read_bytes()
+            for path in tmp_path.rglob("*") if path.is_file()} == before
+    assert source.read_bytes() == source_bytes
