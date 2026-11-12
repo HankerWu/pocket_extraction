@@ -239,6 +239,9 @@ acid sizes cannot exclude a qualifying side chain.
 Distance checks include every alternate atom location written to PDB/mmCIF,
 including lower-occupancy conformers, for both protein and ligand atoms.
 Standalone ligand-file references use the same complete coordinate collection.
+Protein inputs and ligand reference files share `data_utils.load_structure`
+for PDB/mmCIF parsing; reference ligands still require a local file with a
+supported extension, while protein inputs also accept a PDB ID.
 This is a union of contacts across the retained conformers, not an occupancy
 filter or a claim that all conformers occur simultaneously. Model isolation in
 combined extraction is unchanged; historical pockets are not regenerated.

@@ -1,7 +1,6 @@
 import numpy as np
 from typing import Optional
 from pathlib import Path
-from Bio import PDB
 from .data_utils import load_structure, save_structure, process_output_path
 from .selection import PocketSelect
 from .logger import logger, setup_logger
@@ -13,12 +12,10 @@ def get_ligand_coords(ligand_file: str, quiet: bool = False) -> np.ndarray:
     suffix = path.suffix.lower()
     
     try:
-        if suffix == ".pdb":
-            struct = PDB.PDBParser(QUIET=quiet).get_structure("ligand", str(path))
-        elif suffix in (".cif", ".mmcif"):
-            struct = PDB.MMCIFParser(QUIET=quiet).get_structure("ligand", str(path))
-        else:
+        # Reference ligands remain local files; only the protein input supports IDs.
+        if suffix not in (".pdb", ".cif", ".mmcif"):
             raise ValueError(f"Unsupported ligand format: {suffix}")
+        struct = load_structure(str(path), quiet=quiet)
             
         # Match the alternate residues/atoms retained by PDBIO and MMCIFIO.
         return np.array([
