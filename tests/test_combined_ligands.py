@@ -38,6 +38,45 @@ def read_residues(path):
             for residue in structure.get_residues()]
 
 
+@pytest.mark.parametrize("alternate", ["ligand", "protein"])
+@pytest.mark.parametrize("extension", ["pdb", "cif"])
+def test_pockets_include_contacts_from_written_alternate_atoms(tmp_path, alternate, extension):
+    from pocket_extraction.extract_pocket import extract_pocket, get_ligand_coords
+
+    # The low-occupancy conformer is still written by both structure writers.
+    # Its contact must not disappear just because Bio.PDB selects conformer A.
+    atoms = [
+        ("ATOM", "CA", " ", "ALA", 1, 0., 1.),
+        ("ATOM", "CA", "A" if alternate == "protein" else " ", "ALA", 2,
+         30. if alternate == "protein" else 10., .6 if alternate == "protein" else 1.),
+        ("HETATM", "C1", "A" if alternate == "ligand" else " ", "LIG", 3, 0.,
+         .6 if alternate == "ligand" else 1.),
+    ]
+    if alternate == "protein":
+        atoms.insert(2, ("ATOM", "CA", "B", "ALA", 2, 1., .4))
+    else:
+        atoms.append(("HETATM", "C1", "B", "LIG", 3, 10., .4))
+    source = tmp_path / "alternates.pdb"
+    source.write_text("".join(
+        f"{record:<6}{serial:5d} {name:^4}{altloc}{residue:3} A{index:4d}    "
+        f"{x:8.3f}{0.:8.3f}{0.:8.3f}{occupancy:6.2f}{20.:6.2f}           C  \n"
+        for serial, (record, name, altloc, residue, index, x, occupancy)
+        in enumerate(atoms, start=1)
+    ) + "END\n")
+    ligand, pocket = tmp_path / f"ligand.{extension}", tmp_path / f"pocket.{extension}"
+    extract_ligand_and_pocket(str(source), str(ligand), str(pocket), radius=2, quiet=True)
+    assert [row[3] for row in read_residues(pocket)] == [1, 2]
+
+    reference = get_ligand_coords(str(ligand), quiet=True)
+    assert len(reference) == (2 if alternate == "ligand" else 1)
+    standalone = tmp_path / f"standalone.{extension}"
+    extract_pocket(str(source), str(standalone), ligand_coords=reference, radius=2, quiet=True)
+    assert [row[3] for row in read_residues(standalone)] == [1, 2]
+    if alternate == "protein":
+        extract_pocket(str(source), str(standalone), ligand_center=[0., 0., 0.], radius=2, quiet=True)
+        assert [row[3] for row in read_residues(standalone)] == [1, 2]
+
+
 @pytest.mark.parametrize("paired", [False, True])
 @pytest.mark.parametrize("extension", ["pdb", "cif"])
 @pytest.mark.parametrize("options,expected", [

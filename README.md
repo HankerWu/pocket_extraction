@@ -236,6 +236,12 @@ must resolve to distinct file paths; colliding destinations are rejected before
 the first file is written, including multi mode. A protein residue is included
 when any of its atoms is within the requested radius; approximate average amino
 acid sizes cannot exclude a qualifying side chain.
+Distance checks include every alternate atom location written to PDB/mmCIF,
+including lower-occupancy conformers, for both protein and ligand atoms.
+Standalone ligand-file references use the same complete coordinate collection.
+This is a union of contacts across the retained conformers, not an occupancy
+filter or a claim that all conformers occur simultaneously. Model isolation in
+combined extraction is unchanged; historical pockets are not regenerated.
 
 Standalone `extract_ligand --multi` also plans every filename before writing.
 If residue/chain names and the existing index suffixes produce a collision, it

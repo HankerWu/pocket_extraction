@@ -20,7 +20,13 @@ def get_ligand_coords(ligand_file: str, quiet: bool = False) -> np.ndarray:
         else:
             raise ValueError(f"Unsupported ligand format: {suffix}")
             
-        return np.array([atom.coord for atom in struct.get_atoms()])
+        # Match the alternate residues/atoms retained by PDBIO and MMCIFIO.
+        return np.array([
+            atom.coord
+            for chain in struct.get_chains()
+            for residue in chain.get_unpacked_list()
+            for atom in residue.get_unpacked_list()
+        ])
     except Exception as e:
         logger.error(f"Failed to process {path}: {str(e)}")
         raise

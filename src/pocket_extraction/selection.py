@@ -60,14 +60,14 @@ class PocketSelect(Select):
 
     def _check_ligand_center(self, residue):
         """Check against ligand centroid."""
-        for atom in residue:
+        for atom in residue.get_unpacked_list():
             if np.linalg.norm(atom.coord - self.ligand_center) <= self.radius:
                 return True
         return False
 
     def _check_ligand_coords(self, residue):
         """Check against all ligand atoms."""
-        for atom in residue:
+        for atom in residue.get_unpacked_list():
             if np.any(np.linalg.norm(
                 self.ligand_coords - atom.coord,
                 axis=1
@@ -82,7 +82,9 @@ class LigandPocketSelect(Select):
         coordinates = {}
         for ligand in ligands:
             model_id = ligand.get_parent().get_parent().id
-            coordinates.setdefault(model_id, []).extend(atom.coord for atom in ligand.get_atoms())
+            coordinates.setdefault(model_id, []).extend(
+                atom.coord for atom in ligand.get_unpacked_list()
+            )
         self.selectors = {
             model_id: PocketSelect(radius, ligand_coords=np.asarray(points), quiet=quiet)
             for model_id, points in coordinates.items()
