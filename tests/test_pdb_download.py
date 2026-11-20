@@ -34,8 +34,8 @@ def test_download_retries_timeout_and_publishes_complete_file(tmp_path, monkeypa
     destination.write_bytes(b"previous structure")
     attempts = []
 
-    def get(url, *, timeout):
-        attempts.append((url, timeout))
+    def get(url, *, timeout, stream):
+        attempts.append((url, timeout, stream))
         assert destination.read_bytes() == b"previous structure"
         if len(attempts) < 3:
             raise requests.Timeout("read stalled")
@@ -44,7 +44,7 @@ def test_download_retries_timeout_and_publishes_complete_file(tmp_path, monkeypa
     monkeypatch.setattr(requests, "get", get)
     assert fetch_pdb("1abc", str(tmp_path), quiet=True, timeout=0.25) == str(destination)
     assert destination.read_bytes() == b"complete structure"
-    assert attempts == [("https://files.rcsb.org/download/1abc.pdb", 0.25)] * 3
+    assert attempts == [("https://files.rcsb.org/download/1abc.pdb", 0.25, True)] * 3
     assert list(tmp_path.iterdir()) == [destination]
 
 
@@ -53,7 +53,7 @@ def test_download_exhaustion_preserves_previous_file(tmp_path, monkeypatch):
     destination.write_bytes(b"previous structure")
     attempts = []
 
-    def get(url, *, timeout):
+    def get(url, *, timeout, stream):
         attempts.append(timeout)
         raise requests.Timeout("connection stalled")
 
@@ -62,6 +62,29 @@ def test_download_exhaustion_preserves_previous_file(tmp_path, monkeypatch):
         fetch_pdb("1abc", str(tmp_path), retry=2, quiet=True)
     assert attempts == [30.0, 30.0]
     assert destination.read_bytes() == b"previous structure"
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+def test_interrupted_body_is_discarded_before_retry(tmp_path, monkeypatch):
+    destination = tmp_path / "1abc.pdb"
+    destination.write_bytes(b"previous")
+
+    def partial_body(*, chunk_size):
+        yield b"incomplete"
+        raise requests.ConnectionError("body interrupted")
+
+    interrupted = response()
+    interrupted.iter_content = partial_body
+    replies = iter((interrupted, response(b"valid replacement")))
+
+    def get(*args, **kwargs):
+        assert destination.read_bytes() == b"previous"
+        assert list(tmp_path.iterdir()) == [destination]
+        return next(replies)
+
+    monkeypatch.setattr(requests, "get", get)
+    fetch_pdb("1abc", str(tmp_path), quiet=True, retry=2)
+    assert destination.read_bytes() == b"valid replacement"
     assert list(tmp_path.iterdir()) == [destination]
 
 

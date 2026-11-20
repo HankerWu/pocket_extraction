@@ -52,14 +52,14 @@ def fetch_pdb(pdb_id: str, output_dir: Optional[str] = None, ext: str = 'pdb', q
     for attempt in range(retry):
         temporary = None
         try:
-            with requests.get(url, timeout=timeout) as response:
+            with requests.get(url, timeout=timeout, stream=True) as response:
                 response.raise_for_status()
-                content = response.content
-            temporary = output_path.with_name(f".{output_path.name}.{uuid4().hex}.tmp")
-            with temporary.open('xb') as f:
-                if output_path.exists():
-                    temporary.chmod(stat.S_IMODE(output_path.stat().st_mode))
-                f.write(content)
+                temporary = output_path.with_name(f".{output_path.name}.{uuid4().hex}.tmp")
+                with temporary.open('xb') as f:
+                    if output_path.exists():
+                        temporary.chmod(stat.S_IMODE(output_path.stat().st_mode))
+                    for chunk in response.iter_content(chunk_size=1024 * 1024):
+                        f.write(chunk)
             temporary.replace(output_path)
             if not quiet:
                 logger.info(f"Downloaded {url} to {output_path}")

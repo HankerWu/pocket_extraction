@@ -274,12 +274,11 @@ offline local-file extraction needs no network request.
 PDB-ID inputs use `data_utils.fetch_pdb`, with at most three network attempts
 and a 30-second connect/read inactivity timeout per attempt. Python callers can
 set positive `retry` (total attempts) and `timeout` values; these are not a total
-wall-clock deadline. Downloads replace the destination only after the full
-response has been written to a same-directory temporary file, preserving an
+wall-clock deadline. Downloads stream the response in chunks of up to 1 MiB to
+a same-directory temporary file, then replace the destination, preserving an
 existing file's permission mode. Network or publication failures preserve the
 previous file; failed network attempts release the response and filesystem
-failures are surfaced without retrying the download. Local-file extraction and
-the historical frozen PDB/mmCIF inputs are unchanged.
+failures are surfaced without retrying the download.
 
 The public `fetch_pdb` entry validates the supported four-character ASCII
 alphanumeric PDB identifier before any request or file write. Paths and URL
