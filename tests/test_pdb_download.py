@@ -1,7 +1,10 @@
+import tempfile
+
+from Bio.PDB.PDBExceptions import PDBConstructionException
 import requests
 import pytest
 
-from pocket_extraction.data_utils import fetch_pdb
+from pocket_extraction.data_utils import fetch_pdb, load_structure
 
 
 @pytest.mark.parametrize("identifier", ["../outside", "/tmp/outside", "1ab/", "1ab?", "１abc", "", None])
@@ -27,6 +30,25 @@ def response(content=b"complete structure"):
     result._content = content
     result._content_consumed = True
     return result
+
+
+@pytest.mark.parametrize("valid", [True, False])
+def test_load_by_id_discards_its_download_and_preserves_shared_file(tmp_path, monkeypatch, valid):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    previous = tmp_path / "1abc.pdb"
+    previous.write_bytes(b"previous download")
+    atom = b"ATOM      1  CA  ALA A   1       1.000   2.000   3.000  1.00  0.00           C\nEND\n"
+    content = atom if valid else atom.replace(b"   2.000", b" INVALID")
+    monkeypatch.setattr(requests, "get", lambda *args, **kwargs: response(content))
+
+    if valid:
+        structure = load_structure("1abc", quiet=True)
+        assert next(structure.get_atoms()).coord.tolist() == [1.0, 2.0, 3.0]
+    else:
+        with pytest.raises(PDBConstructionException):
+            load_structure("1abc", quiet=True)
+    assert previous.read_bytes() == b"previous download"
+    assert list(tmp_path.iterdir()) == [previous]
 
 
 def test_download_does_not_remove_a_staging_file_it_could_not_open(tmp_path, monkeypatch):

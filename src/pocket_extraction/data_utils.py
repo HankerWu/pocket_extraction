@@ -166,11 +166,12 @@ def process_output_path(output_path: str, base_name: str, ext: Optional[str] = N
 def load_structure(pdb_file: str, quiet: bool = False) -> Structure:
     """Load structure from file with format autodetection."""
     if not os.path.isfile(pdb_file):
-        if is_valid_pdb_id(pdb_file):
-            pdb_file = fetch_pdb(pdb_file, quiet=quiet)
-        else:
+        if not is_valid_pdb_id(pdb_file):
             raise ValueError(f"Invalid PDB ID or file: {pdb_file}")
-        
+        with tempfile.TemporaryDirectory(prefix="pocket-extraction-") as download_dir:
+            downloaded = fetch_pdb(pdb_file, output_dir=download_dir, quiet=quiet)
+            return load_structure(downloaded, quiet=quiet)
+
     path = Path(pdb_file)
     suffix = path.suffix.lower()
     

@@ -285,6 +285,9 @@ a same-directory temporary file, then replace the destination, preserving an
 existing file's permission mode. Network or publication failures preserve the
 previous file; failed network attempts release the response and filesystem
 failures are surfaced without retrying the download.
+The extraction entrypoints parse PDB-ID downloads from a directory owned by
+that invocation. It is removed after parsing succeeds or fails. Call
+`fetch_pdb` directly to keep a downloaded file at a chosen destination.
 
 The public `fetch_pdb` entry validates the supported four-character ASCII
 alphanumeric PDB identifier before any request or file write. Paths and URL
