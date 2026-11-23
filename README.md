@@ -262,8 +262,10 @@ their existing semantics.
 
 `save_structure` writes a same-directory temporary PDB/mmCIF and replaces the
 requested file only after successful serialization, retaining an existing file's
-permission mode and the normal creation umask for new files. A failed writer
-removes its temporary file and preserves the original output and exception.
+permission mode and the normal creation umask for new files. Serialization
+uses the exclusively opened file handle. Structure writers and downloads
+share the same staging and publication logic, and a failed writer removes
+only the temporary file it successfully opened.
 Each file is published separately: combined ligand/pocket and multi-file outputs
 are not one atomic transaction. A later filesystem failure can leave an already
 completed file alongside the previous version of another file. No frozen

@@ -3,6 +3,7 @@ import os
 import requests
 import tempfile
 import stat
+from contextlib import ExitStack, contextmanager
 from uuid import uuid4
 from Bio import PDB
 from Bio.PDB import Select
@@ -19,6 +20,32 @@ RESIDUE_MAP = {
     "SER": "S", "THR": "T", "TRP": "W", "TYR": "Y", "VAL": "V",
     "MSE": "M", "UNK": "X"
 }
+
+
+@contextmanager
+def _staged_output(destination: Path, mode: str):
+    """Give the writer an owned file and publish it only after it closes."""
+    temporary = destination.with_name(f".{destination.name}.{uuid4().hex}.tmp")
+    try:
+        existing_mode = stat.S_IMODE(destination.stat().st_mode)
+    except FileNotFoundError:
+        existing_mode = None
+    handle = temporary.open(mode)
+    try:
+        with handle:
+            if existing_mode is not None:
+                temporary.chmod(existing_mode)
+            yield handle
+        temporary.replace(destination)
+    except BaseException:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError as error:
+            logger.error(f"Temporary output cleanup failed: {error}")
+        raise
+
 
 def fetch_pdb(pdb_id: str, output_dir: Optional[str] = None, ext: str = 'pdb', quiet: bool = False, retry: int = 3, timeout: float = 30.0) -> str:
     """Fetch PDB file from RCSB database.
@@ -50,17 +77,13 @@ def fetch_pdb(pdb_id: str, output_dir: Optional[str] = None, ext: str = 'pdb', q
     output_path = Path(output_dir) / f"{pdb_id}.{ext}"
     
     for attempt in range(retry):
-        temporary = None
         try:
-            with requests.get(url, timeout=timeout, stream=True) as response:
-                response.raise_for_status()
-                temporary = output_path.with_name(f".{output_path.name}.{uuid4().hex}.tmp")
-                with temporary.open('xb') as f:
-                    if output_path.exists():
-                        temporary.chmod(stat.S_IMODE(output_path.stat().st_mode))
+            with ExitStack() as output:
+                with requests.get(url, timeout=timeout, stream=True) as response:
+                    response.raise_for_status()
+                    f = output.enter_context(_staged_output(output_path, 'xb'))
                     for chunk in response.iter_content(chunk_size=1024 * 1024):
                         f.write(chunk)
-            temporary.replace(output_path)
             if not quiet:
                 logger.info(f"Downloaded {url} to {output_path}")
             return str(output_path)
@@ -71,12 +94,6 @@ def fetch_pdb(pdb_id: str, output_dir: Optional[str] = None, ext: str = 'pdb', q
             else:
                 logger.error(f"Failed to download {url}: {e}")
                 raise
-        finally:
-            if temporary is not None and temporary.exists():
-                try:
-                    temporary.unlink()
-                except OSError as cleanup_error:
-                    logger.error(f"Temporary download cleanup failed: {cleanup_error}")
 
 def is_valid_pdb_id(pdb_id: str) -> bool:
     """Check if the given string is a valid PDB ID."""
@@ -180,20 +197,13 @@ def save_structure(
     if suffix not in (".pdb", ".cif"):
         raise ValueError(f"Unsupported format '{suffix}'. Use .pdb or .cif")
     
-    temporary = None
     try:
         io = PDB.MMCIFIO() if suffix == ".cif" else PDB.PDBIO()
         io.set_structure(structure)
         
         path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_name(f".{path.stem}.{uuid4().hex}{suffix}")
-        # Exclusive creation retains ordinary output umask semantics.
-        with temporary.open("x"):
-            pass
-        if path.exists():
-            temporary.chmod(stat.S_IMODE(path.stat().st_mode))
-        io.save(str(temporary), select=select)
-        temporary.replace(path)
+        with _staged_output(path, "x") as handle:
+            io.save(handle, select=select)
         
         if not quiet:
             logger.info(f"Saved structure to {path}")
@@ -201,10 +211,4 @@ def save_structure(
     except Exception as e:
         logger.exception("Save operation failed")
         raise
-    finally:
-        if temporary is not None and temporary.exists():
-            try:
-                temporary.unlink()
-            except OSError as cleanup_err:
-                logger.error(f"Temporary output cleanup failed: {cleanup_err}")
 

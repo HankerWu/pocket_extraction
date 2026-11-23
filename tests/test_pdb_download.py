@@ -29,6 +29,21 @@ def response(content=b"complete structure"):
     return result
 
 
+def test_download_does_not_remove_a_staging_file_it_could_not_open(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from pocket_extraction import data_utils
+
+    owned_by_another_writer = tmp_path / ".1abc.pdb.fixed.tmp"
+    owned_by_another_writer.write_bytes(b"another writer")
+    monkeypatch.setattr(data_utils, "uuid4", lambda: SimpleNamespace(hex="fixed"))
+    monkeypatch.setattr(requests, "get", lambda *args, **kwargs: response())
+
+    with pytest.raises(FileExistsError):
+        fetch_pdb("1abc", str(tmp_path), quiet=True)
+    assert owned_by_another_writer.read_bytes() == b"another writer"
+    assert not (tmp_path / "1abc.pdb").exists()
+
+
 def test_download_retries_timeout_and_publishes_complete_file(tmp_path, monkeypatch):
     destination = tmp_path / "1abc.pdb"
     destination.write_bytes(b"previous structure")
