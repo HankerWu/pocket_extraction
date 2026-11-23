@@ -240,8 +240,9 @@ when any of its atoms is within the requested radius; approximate average amino
 acid sizes cannot exclude a qualifying side chain.
 Distance checks include every alternate atom location written to PDB/mmCIF,
 including lower-occupancy conformers, for both protein and ligand atoms.
-For ligand atom references, the selector evaluates each protein residue in
-bounded blocks of atom pairs, using the same inclusive distance threshold.
+For larger ligand atom references, the selector skips atom blocks beyond the
+ligand bounding box plus the search distance. It checks atom pairs in blocks of
+at most 4,096 pairs, using the same inclusive distance threshold.
 When writing pockets to PDB, long mmCIF chain IDs outside the pocket are skipped.
 Use mmCIF output if the pocket contains residues from a chain with a long ID.
 Standalone ligand-file references use the same complete coordinate collection.

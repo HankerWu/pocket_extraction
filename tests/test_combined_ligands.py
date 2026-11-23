@@ -315,7 +315,8 @@ def test_invalid_later_ligand_in_multi_mode_publishes_no_files(tmp_path, structu
 
 
 @pytest.mark.parametrize("geometry", [{"ligand_center": [0, 0, 0]},
-                                    {"ligand_coords": [[0, 0, 0]]}])
+                                    {"ligand_coords": [[0, 0, 0]]},
+                                    {"ligand_coords": [[30, 30, 30]] * 4096 + [[-.5, 0, 0]]}])
 def test_pocket_uses_nearest_atom_instead_of_average_residue_size(tmp_path, geometry):
     from pocket_extraction.extract_pocket import extract_pocket
     structure = tmp_path / "long_side_chain.pdb"

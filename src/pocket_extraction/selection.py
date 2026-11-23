@@ -6,6 +6,8 @@ from .data_utils import RESIDUE_MAP, get_remove_ligands
 
 # Immutable default exclusions; additional exclusions belong to each selector.
 REMOVE_LIGANDS = frozenset(get_remove_ligands())
+_ATOM_PAIR_BLOCK_SIZE = 4096
+_MIN_BOUNDING_BOX_LIGAND_ATOMS = 16
 
 def validate_radius(radius):
     """Use the same finite, positive distance contract for both pocket APIs."""
@@ -39,10 +41,19 @@ class PocketSelect(Select):
         self.quiet = quiet
         
         if ligand_coords is not None:
-            self.ligand_coords = np.asarray(ligand_coords, dtype=np.float32)
-            if (self.ligand_coords.ndim != 2 or self.ligand_coords.shape[1] != 3
-                    or not len(self.ligand_coords) or not np.isfinite(self.ligand_coords).all()):
+            coords = np.asarray(ligand_coords, dtype=np.float32)
+            if (coords.ndim != 2 or coords.shape[1] != 3
+                    or not len(coords) or not np.isfinite(coords).all()):
                 raise ValueError("Ligand coordinates must be a nonempty finite Nx3 array")
+            self._ligand_bounds = None
+            if len(coords) >= _MIN_BOUNDING_BOX_LIGAND_ATOMS:
+                coords = coords.copy()
+                self._ligand_bounds = (coords.min(axis=0), coords.max(axis=0))
+            self._ligand_blocks = tuple(
+                coords[start:start + _ATOM_PAIR_BLOCK_SIZE]
+                for start in range(0, len(coords), _ATOM_PAIR_BLOCK_SIZE)
+            )
+            self._atoms_per_block = _ATOM_PAIR_BLOCK_SIZE // len(self._ligand_blocks[0])
         else:
             self.ligand_center = np.asarray(ligand_center, dtype=np.float32)
             if self.ligand_center.shape != (3,) or not np.isfinite(self.ligand_center).all():
@@ -55,7 +66,7 @@ class PocketSelect(Select):
         if one_letter is None:
             return False
             
-        return (self._check_ligand_coords(residue) if hasattr(self, 'ligand_coords') 
+        return (self._check_ligand_coords(residue) if hasattr(self, '_ligand_blocks')
                 else self._check_ligand_center(residue))
 
     def accept_chain(self, chain):
@@ -73,13 +84,19 @@ class PocketSelect(Select):
     def _check_ligand_coords(self, residue):
         """Check against all ligand atoms."""
         atoms = residue.get_unpacked_list()
-        # Bound the distance matrix even for large combined ligand groups.
-        atoms_per_block = max(1, 4096 // len(self.ligand_coords))
+        atoms_per_block = self._atoms_per_block
         for start in range(0, len(atoms), atoms_per_block):
             points = np.asarray([atom.coord for atom in atoms[start:start + atoms_per_block]])
-            deltas = self.ligand_coords - points[:, None, :]
-            if np.any(np.linalg.norm(deltas, axis=-1) <= self.radius):
-                return True
+            if self._ligand_bounds is not None:
+                lower, upper = self._ligand_bounds
+                # This lower bound uses the same dtype and norm as the exact check.
+                nearest = np.maximum(np.maximum(lower - points, points - upper), 0)
+                if not np.any(np.linalg.norm(nearest, axis=-1) <= self.radius):
+                    continue
+            for ligands in self._ligand_blocks:
+                deltas = ligands - points[:, None, :]
+                if np.any(np.linalg.norm(deltas, axis=-1) <= self.radius):
+                    return True
         return False
 
 class LigandPocketSelect(Select):
