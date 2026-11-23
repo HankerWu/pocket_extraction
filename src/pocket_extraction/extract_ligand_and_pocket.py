@@ -1,7 +1,7 @@
 from typing import Optional, List
 from pathlib import Path
 from .data_utils import load_structure, save_structure, process_output_path
-from .selection import LigandSelect, LigandPocketSelect, collect_ligands, validate_radius
+from .selection import LigandSelect, LigandPocketSelect, collect_ligands, save_pocket, validate_radius
 from .logger import logger, setup_logger
 from .arguments import get_ligand_and_pocket_parser
 
@@ -64,7 +64,7 @@ def extract_ligand_and_pocket(
                 save_structure(ligand_file, ligand_source, quiet=quiet)
             else:
                 save_structure(ligand_file, ligand_source, selection, quiet)
-            save_structure(pocket_file, structure, pocket_selector, quiet)
+            save_pocket(pocket_file, structure, pocket_selector, quiet)
         count = len(ligands)
 
         if not quiet:

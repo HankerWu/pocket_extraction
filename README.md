@@ -245,6 +245,9 @@ ligand bounding box plus the search distance. It checks atom pairs in blocks of
 at most 4,096 pairs, using the same inclusive distance threshold.
 When writing pockets to PDB, long mmCIF chain IDs outside the pocket are skipped.
 Use mmCIF output if the pocket contains residues from a chain with a long ID.
+Multi-model PDB extraction writes a complete `MODEL`/`ENDMDL` pair for each
+model that contributes a ligand or contact to that output. The source model
+serials and retained residue and atom order are preserved.
 Standalone ligand-file references use the same complete coordinate collection.
 Protein inputs and ligand reference files share `data_utils.load_structure`
 for PDB/mmCIF parsing; reference ligands still require a local file with a

@@ -1,8 +1,9 @@
 from Bio.PDB import Select
 import numpy as np
+from pathlib import Path
 from typing import Optional, List
 from .logger import logger
-from .data_utils import RESIDUE_MAP, get_remove_ligands
+from .data_utils import RESIDUE_MAP, get_remove_ligands, save_structure
 
 # Immutable default exclusions; additional exclusions belong to each selector.
 REMOVE_LIGANDS = frozenset(get_remove_ligands())
@@ -152,12 +153,16 @@ class LigandSelect(Select):
         self.exclude = set(exclude or ())
         self.selected_residues = None
         self.selected_chains = None
+        self.selected_models = None
         if selected_residues is not None:
             self.selected_residues = set()
             self.selected_chains = set()
+            self.selected_models = set()
             for residue in selected_residues:
+                chain = residue.get_parent()
                 self.selected_residues.add(id(residue))
-                self.selected_chains.add(id(residue.get_parent()))
+                self.selected_chains.add(id(chain))
+                self.selected_models.add(id(chain.get_parent()))
         
         if self.ligand_names:
             invalid = self.ligand_names & REMOVE_LIGANDS
@@ -165,9 +170,11 @@ class LigandSelect(Select):
                 logger.warning(f"Excluded ligands in request: {invalid}")
 
     def accept_model(self, model):
-        if self.model_ids is None:
-            return True
-        return True if model.id in self.model_ids else False
+        # PDBIO writes MODEL before looking at its chains. Only models with
+        # selected residues should reach the writer.
+        if self.selected_models is not None and id(model) not in self.selected_models:
+            return False
+        return self.model_ids is None or model.id in self.model_ids
 
     def accept_chain(self, chain):
         if self.selected_chains is not None and id(chain) not in self.selected_chains:
@@ -204,9 +211,23 @@ def collect_ligands(structure, selector, ignore_duplicates=True):
             for residue in chain.get_unpacked_list():
                 if not selector.accept_residue(residue):
                     continue
-                name = residue.get_resname().strip()
-                if ignore_duplicates and name in seen:
-                    continue
-                seen.add(name)
+                if ignore_duplicates:
+                    name = residue.get_resname().strip()
+                    if name in seen:
+                        continue
+                    seen.add(name)
                 ligands.append(residue)
     return ligands
+
+
+def save_pocket(path, structure, selector, quiet):
+    if len(structure) > 1 and Path(path).resolve().suffix.lower() == '.pdb':
+        # PDBIO emits MODEL before checking its contents. Select the contacts
+        # once so only nonempty models and chains reach the writer.
+        contacts = (
+            residue for model in structure if selector.accept_model(model)
+            for chain in model for residue in chain.get_unpacked_list()
+            if selector.accept_residue(residue)
+        )
+        selector = LigandSelect(selected_residues=contacts, quiet=quiet)
+    save_structure(path, structure, selector, quiet)

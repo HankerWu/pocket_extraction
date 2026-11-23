@@ -142,6 +142,37 @@ def test_combined_output_contains_every_selected_ligand(
         count = extract_ligand(str(structure_file), str(ligand), quiet=True, **options)
     assert count == len(expected)
     assert read_residues(ligand) == expected
+    if extension == 'pdb':
+        lines = ligand.read_text().splitlines()
+        expected_models = sorted({row[0] for row in expected})
+        assert [int(line.split()[1]) for line in lines if line.startswith('MODEL ')] == expected_models
+        assert sum(line.startswith('ENDMDL') for line in lines) == len(expected_models)
+
+
+@pytest.mark.parametrize('paired', [False, True])
+def test_pocket_pdb_skips_models_without_contacts(tmp_path, structure_file, paired):
+    from pocket_extraction.extract_pocket import extract_pocket
+
+    structure = PDBParser(QUIET=True).get_structure('source', structure_file)
+    for residue in structure[0].get_residues():
+        if residue.get_resname() == 'ALA':
+            for atom in residue:
+                atom.coord[0] += 100
+    writer = MMCIFIO()
+    writer.set_structure(structure)
+    source = tmp_path / 'source.cif'
+    writer.save(str(source))
+    pocket = tmp_path / 'pocket.pdb'
+    if paired:
+        extract_ligand_and_pocket(str(source), str(tmp_path / 'ligand.pdb'), str(pocket),
+                                 ligand_names=['LIG'], ignore_duplicates=False, radius=2, quiet=True)
+    else:
+        extract_pocket(str(source), str(pocket), ligand_center=[1, 0, 0], radius=2, quiet=True)
+
+    lines = pocket.read_text().splitlines()
+    assert [int(line.split()[1]) for line in lines if line.startswith('MODEL ')] == [2]
+    assert sum(line.startswith('ENDMDL') for line in lines) == 1
+    assert read_residues(pocket) == [(2, 'A', 'ALA', 1, 1)]
 
 
 @pytest.mark.parametrize("paired", [False, True])

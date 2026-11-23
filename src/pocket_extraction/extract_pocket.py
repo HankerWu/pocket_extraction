@@ -1,8 +1,8 @@
 import numpy as np
 from typing import Optional
 from pathlib import Path
-from .data_utils import load_structure, save_structure, process_output_path
-from .selection import PocketSelect
+from .data_utils import load_structure, process_output_path
+from .selection import PocketSelect, save_pocket
 from .logger import logger, setup_logger
 from .arguments import get_pocket_parser
 
@@ -44,7 +44,7 @@ def extract_pocket(
     
     try:
         structure = load_structure(pdb_file, quiet)
-        save_structure(output_path, structure, selector, quiet)
+        save_pocket(output_path, structure, selector, quiet)
         return output_path
     except Exception as e:
         logger.exception(f"Pocket extraction failed for {pdb_file}: {(e)}")
