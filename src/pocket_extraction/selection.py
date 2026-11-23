@@ -1,6 +1,6 @@
 from Bio.PDB import Select
 import numpy as np
-from typing import Optional, List, Dict
+from typing import Optional, List
 from .logger import logger
 from .data_utils import RESIDUE_MAP, get_remove_ligands
 
@@ -72,11 +72,13 @@ class PocketSelect(Select):
 
     def _check_ligand_coords(self, residue):
         """Check against all ligand atoms."""
-        for atom in residue.get_unpacked_list():
-            if np.any(np.linalg.norm(
-                self.ligand_coords - atom.coord,
-                axis=1
-            ) <= self.radius):
+        atoms = residue.get_unpacked_list()
+        # Bound the distance matrix even for large combined ligand groups.
+        atoms_per_block = max(1, 4096 // len(self.ligand_coords))
+        for start in range(0, len(atoms), atoms_per_block):
+            points = np.asarray([atom.coord for atom in atoms[start:start + atoms_per_block]])
+            deltas = self.ligand_coords - points[:, None, :]
+            if np.any(np.linalg.norm(deltas, axis=-1) <= self.radius):
                 return True
         return False
 
