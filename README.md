@@ -216,7 +216,9 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 `extract_ligand` and `extract_ligand_and_pocket` share filtered ligand collection.
 Without `--multi`, the single ligand output contains **all selected residues**,
 retaining their original model, chain, residue and atom identities; the paired
-pocket is selected around that same collection. `--ignore_duplicates true` keeps
+pocket is selected around that same collection. Ligand-only serialization visits
+the chains that contain selected ligands. Unselected mmCIF chains with long IDs
+can be skipped when writing ligands to PDB. `--ignore_duplicates true` keeps
 the first residue of each ligand name after model/chain/name filters. With
 `--multi`, existing per-ligand output naming and pocket selection are retained.
 The returned count reports the number of selected ligand residues, not files.

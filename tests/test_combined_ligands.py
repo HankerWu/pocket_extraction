@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from Bio.PDB import MMCIFParser, PDBParser
+from Bio.PDB import MMCIFIO, MMCIFParser, PDBParser
 
 from pocket_extraction.extract_ligand import extract_ligand
 from pocket_extraction.extract_ligand_and_pocket import extract_ligand_and_pocket
@@ -36,6 +36,24 @@ def read_residues(path):
     return [(residue.get_parent().get_parent().serial_num, residue.get_parent().id,
              residue.get_resname(), residue.id[1], len(list(residue.get_atoms())))
             for residue in structure.get_residues()]
+
+
+@pytest.mark.parametrize('paired', [False, True])
+def test_pdb_ligand_output_does_not_visit_unselected_mmcif_chains(tmp_path, structure_file, paired):
+    source = tmp_path / 'source.cif'
+    structure = PDBParser(QUIET=True).get_structure('source', structure_file)
+    for model in structure:
+        model['B'].id = 'LONG'
+    writer = MMCIFIO()
+    writer.set_structure(structure)
+    writer.save(str(source))
+    ligand = tmp_path / 'ligand.pdb'
+    options = {'ligand_names': ['LIG'], 'ignore_duplicates': False, 'quiet': True}
+    if paired:
+        assert extract_ligand_and_pocket(str(source), str(ligand), str(tmp_path / 'pocket.cif'), **options) == 2
+    else:
+        assert extract_ligand(str(source), str(ligand), **options) == 2
+    assert read_residues(ligand) == [(1, 'A', 'LIG', 2, 1), (2, 'A', 'LIG', 2, 1)]
 
 
 @pytest.mark.parametrize("alternate", ["ligand", "protein"])

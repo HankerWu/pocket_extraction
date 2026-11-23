@@ -123,8 +123,14 @@ class LigandSelect(Select):
         self.chain_ids = chain_ids
         self.quiet = quiet
         self.exclude = set(exclude or ())
-        self.selected_residues = (None if selected_residues is None
-                                  else {id(residue) for residue in selected_residues})
+        self.selected_residues = None
+        self.selected_chains = None
+        if selected_residues is not None:
+            self.selected_residues = set()
+            self.selected_chains = set()
+            for residue in selected_residues:
+                self.selected_residues.add(id(residue))
+                self.selected_chains.add(id(residue.get_parent()))
         
         if self.ligand_names:
             invalid = self.ligand_names & REMOVE_LIGANDS
@@ -137,6 +143,8 @@ class LigandSelect(Select):
         return True if model.id in self.model_ids else False
 
     def accept_chain(self, chain):
+        if self.selected_chains is not None and id(chain) not in self.selected_chains:
+            return False
         if self.chain_ids is None:
             return True
         return True if chain.id in self.chain_ids else False
