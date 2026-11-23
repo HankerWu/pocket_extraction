@@ -58,6 +58,11 @@ class PocketSelect(Select):
         return (self._check_ligand_coords(residue) if hasattr(self, 'ligand_coords') 
                 else self._check_ligand_center(residue))
 
+    def accept_chain(self, chain):
+        # PDBIO checks chain IDs before applying accept_residue. Skip an
+        # out-of-pocket mmCIF chain even when its ID cannot be written to PDB.
+        return len(chain.id) <= 1 or any(map(self.accept_residue, chain.get_unpacked_list()))
+
     def _check_ligand_center(self, residue):
         """Check against ligand centroid."""
         for atom in residue.get_unpacked_list():
@@ -92,6 +97,9 @@ class LigandPocketSelect(Select):
 
     def accept_model(self, model):
         return model.id in self.selectors
+
+    def accept_chain(self, chain):
+        return self.selectors[chain.get_parent().id].accept_chain(chain)
 
     def accept_residue(self, residue):
         selector = self.selectors.get(residue.get_parent().get_parent().id)

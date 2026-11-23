@@ -56,6 +56,28 @@ def test_pdb_ligand_output_does_not_visit_unselected_mmcif_chains(tmp_path, stru
     assert read_residues(ligand) == [(1, 'A', 'LIG', 2, 1), (2, 'A', 'LIG', 2, 1)]
 
 
+@pytest.mark.parametrize('paired', [False, True])
+def test_pocket_pdb_skips_outside_mmcif_chains_with_long_ids(tmp_path, structure_file, paired):
+    from pocket_extraction.extract_pocket import extract_pocket
+
+    structure = PDBParser(QUIET=True).get_structure('source', structure_file)
+    for model in structure:
+        model['B'].id = 'LONG'
+    writer = MMCIFIO()
+    writer.set_structure(structure)
+    source = tmp_path / 'source.cif'
+    writer.save(str(source))
+    pocket = tmp_path / 'pocket.pdb'
+    if paired:
+        extract_ligand_and_pocket(str(source), str(tmp_path / 'ligand.pdb'), str(pocket),
+                                  ligand_names=['LIG'], ignore_duplicates=False, radius=2, quiet=True)
+    else:
+        extract_pocket(str(source), str(pocket), ligand_center=[1, 0, 0], radius=2, quiet=True)
+    assert [(chain, name) for _, chain, name, _, _ in read_residues(pocket)] == [
+        ('A', 'ALA'), ('A', 'ALA'),
+    ]
+
+
 @pytest.mark.parametrize("alternate", ["ligand", "protein"])
 @pytest.mark.parametrize("extension", ["pdb", "cif"])
 def test_pockets_include_contacts_from_written_alternate_atoms(tmp_path, alternate, extension):

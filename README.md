@@ -240,6 +240,8 @@ when any of its atoms is within the requested radius; approximate average amino
 acid sizes cannot exclude a qualifying side chain.
 Distance checks include every alternate atom location written to PDB/mmCIF,
 including lower-occupancy conformers, for both protein and ligand atoms.
+When writing pockets to PDB, long mmCIF chain IDs outside the pocket are skipped.
+Use mmCIF output if the pocket contains residues from a chain with a long ID.
 Standalone ligand-file references use the same complete coordinate collection.
 Protein inputs and ligand reference files share `data_utils.load_structure`
 for PDB/mmCIF parsing; reference ligands still require a local file with a
